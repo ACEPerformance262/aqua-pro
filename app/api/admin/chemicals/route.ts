@@ -1,0 +1,113 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+import { getSession } from '@/lib/auth'
+
+export async function GET(req: NextRequest) {
+  const user = await getSession()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { searchParams } = new URL(req.url)
+  const section = searchParams.get('section')
+
+  if (section === 'usage') {
+    const { data, error } = await supabaseAdmin
+      .from('chemical_usage_log')
+      .select('*, chemicals(name, unit, type), pools(name), applier:applied_by(first_name, last_name)')
+      .order('applied_at', { ascending: false })
+      .limit(200)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ usage: data })
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('chemicals')
+    .select('*')
+    .eq('is_active', true)
+    .order('name')
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ chemicals: data })
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+
+  if (body.action === 'log_usage') {
+    const { data: usage, error: ue } = await supabaseAdmin
+      .from('chemical_usage_log')
+      .insert({
+        pool_id: body.pool_id,
+        chemical_id: body.chemical_id,
+        water_test_id: body.water_test_id || null,
+        applied_by: user.id,
+        applied_at: body.applied_at || new Date().toISOString(),
+        quantity: body.quantity,
+        notes: body.notes || null,
+      })
+      .select('*, chemicals(name, unit), pools(name)')
+      .single()
+    if (ue) return NextResponse.json({ error: ue.message }, { status: 500 })
+
+    // Decrement stock
+    const { data: chem } = await supabaseAdmin
+      .from('chemicals')
+      .select('current_stock')
+      .eq('id', body.chemical_id)
+      .single()
+    if (chem && chem.current_stock !== null) {
+      await supabaseAdmin
+        .from('chemicals')
+        .update({ current_stock: Math.max(0, Number(chem.current_stock) - Number(body.quantity)) })
+        .eq('id', body.chemical_id)
+    }
+    return NextResponse.json({ usage })
+  }
+
+  if (body.action === 'update_stock') {
+    const { data, error } = await supabaseAdmin
+      .from('chemicals')
+      .update({ current_stock: body.current_stock })
+      .eq('id', body.id)
+      .select()
+      .single()
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ chemical: data })
+  }
+
+  // Create chemical
+  const { data, error } = await supabaseAdmin
+    .from('chemicals')
+    .insert({
+      name: body.name,
+      type: body.type,
+      unit: body.unit ?? 'L',
+      current_stock: body.current_stock ?? 0,
+      reorder_point: body.reorder_point ?? 0,
+      supplier: body.supplier || null,
+      safety_data_sheet_url: body.safety_data_sheet_url || null,
+    })
+    .select()
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ chemical: data })
+}
+
+export async function PATCH(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role))
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, ...updates } = body
+  const { data, error } = await supabaseAdmin
+    .from('chemicals')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ chemical: data })
+}

@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { randomBytes } from 'crypto'
+import { supabaseAdmin } from '@/lib/supabase'
+import { getSession } from '@/lib/auth'
+
+export async function GET() {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const { data, error } = await supabaseAdmin
+    .from('iot_sensors')
+    .select('*, pools(name, site_code)')
+    .order('installed_at', { ascending: false })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ sensors: data })
+}
+
+export async function POST(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  // Generate a cryptographically random sensor key
+  const sensorKey = randomBytes(32).toString('hex')
+
+  const { data, error } = await supabaseAdmin
+    .from('iot_sensors')
+    .insert({
+      pool_id: body.pool_id,
+      sensor_key: sensorKey,
+      device_type: body.device_type || null,
+      manufacturer: body.manufacturer || null,
+      serial_number: body.serial_number || null,
+      installed_at: new Date().toISOString(),
+      notes: body.notes || null,
+    })
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  // Return the raw key once — it's stored hashed ideally, but for simplicity stored as-is
+  // In production: hash the sensor_key in the DB and compare on ingest
+  return NextResponse.json({ sensor: data, sensor_key: sensorKey })
+}

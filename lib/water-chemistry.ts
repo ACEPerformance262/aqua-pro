@@ -1,0 +1,355 @@
+// Water chemistry calculations and risk classification for AquaPro
+
+export type PoolType = 'indoor' | 'outdoor' | 'spa' | 'wading' | 'hydrotherapy' | 'leisure'
+export type SanitiserType = 'chlorine' | 'bromine' | 'saltwater' | 'uv_chlorine' | 'ozone_chlorine' | 'baquacil'
+export type RiskLevel = 'green' | 'yellow' | 'orange' | 'red'
+
+export interface WaterTestValues {
+  freeChlorine?: number
+  combinedChlorine?: number
+  bromine?: number
+  ph?: number
+  totalAlkalinity?: number
+  calciumHardness?: number
+  cyanuricAcid?: number
+  totalDissolvedSolids?: number
+  saltLevel?: number
+  phosphates?: number
+  temperatureC?: number
+  turbidity?: number
+}
+
+export interface ParameterRange {
+  min: number
+  max: number
+  ideal: number
+  unit: string
+  priority: 'critical' | 'high' | 'normal'
+  label: string
+}
+
+// Default ranges by pool type and sanitiser
+const RANGES: Record<string, Record<string, ParameterRange>> = {
+  outdoor_chlorine: {
+    freeChlorine:       { min: 1.0, max: 3.0,  ideal: 2.0,  unit: 'ppm', priority: 'critical', label: 'Free Chlorine' },
+    combinedChlorine:   { min: 0,   max: 0.2,  ideal: 0.0,  unit: 'ppm', priority: 'high',     label: 'Combined Chlorine' },
+    ph:                 { min: 7.2, max: 7.6,  ideal: 7.4,  unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 200, max: 400,  ideal: 300,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+    cyanuricAcid:       { min: 30,  max: 50,   ideal: 40,   unit: 'ppm', priority: 'high',     label: 'Cyanuric Acid' },
+    totalDissolvedSolids: { min: 0, max: 3000, ideal: 1500, unit: 'ppm', priority: 'normal',   label: 'Total Dissolved Solids' },
+    phosphates:         { min: 0,   max: 100,  ideal: 0,    unit: 'ppb', priority: 'normal',   label: 'Phosphates' },
+  },
+  outdoor_saltwater: {
+    freeChlorine:       { min: 1.0, max: 3.0,  ideal: 2.0,  unit: 'ppm', priority: 'critical', label: 'Free Chlorine' },
+    combinedChlorine:   { min: 0,   max: 0.2,  ideal: 0.0,  unit: 'ppm', priority: 'high',     label: 'Combined Chlorine' },
+    ph:                 { min: 7.2, max: 7.6,  ideal: 7.4,  unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 200, max: 400,  ideal: 300,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+    cyanuricAcid:       { min: 30,  max: 50,   ideal: 40,   unit: 'ppm', priority: 'high',     label: 'Cyanuric Acid' },
+    saltLevel:          { min: 2700, max: 3400, ideal: 3000, unit: 'ppm', priority: 'high',    label: 'Salt Level' },
+    phosphates:         { min: 0,   max: 100,  ideal: 0,    unit: 'ppb', priority: 'normal',   label: 'Phosphates' },
+  },
+  indoor_chlorine: {
+    freeChlorine:       { min: 1.0, max: 3.0,  ideal: 2.0,  unit: 'ppm', priority: 'critical', label: 'Free Chlorine' },
+    combinedChlorine:   { min: 0,   max: 0.2,  ideal: 0.0,  unit: 'ppm', priority: 'critical', label: 'Combined Chlorine' },
+    ph:                 { min: 7.2, max: 7.6,  ideal: 7.4,  unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 200, max: 400,  ideal: 300,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+    phosphates:         { min: 0,   max: 100,  ideal: 0,    unit: 'ppb', priority: 'normal',   label: 'Phosphates' },
+  },
+  spa_chlorine: {
+    freeChlorine:       { min: 3.0, max: 5.0,  ideal: 4.0,  unit: 'ppm', priority: 'critical', label: 'Free Chlorine' },
+    combinedChlorine:   { min: 0,   max: 0.2,  ideal: 0.0,  unit: 'ppm', priority: 'critical', label: 'Combined Chlorine' },
+    ph:                 { min: 7.2, max: 7.8,  ideal: 7.5,  unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 150, max: 250,  ideal: 200,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+  },
+  spa_bromine: {
+    bromine:            { min: 3.0, max: 5.0,  ideal: 4.0,  unit: 'ppm', priority: 'critical', label: 'Bromine' },
+    ph:                 { min: 7.2, max: 7.8,  ideal: 7.5,  unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 150, max: 250,  ideal: 200,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+  },
+}
+
+export function getRanges(poolType: PoolType, sanitiserType: SanitiserType): Record<string, ParameterRange> {
+  const key = `${poolType}_${sanitiserType}`
+  return RANGES[key] ?? RANGES['outdoor_chlorine']
+}
+
+export interface RiskResult {
+  riskLevel: RiskLevel
+  flags: string[]         // parameter keys that are out of range
+  criticalFlags: string[] // critical parameters out of range
+}
+
+export function classifyRisk(values: WaterTestValues, poolType: PoolType, sanitiserType: SanitiserType): RiskResult {
+  const ranges = getRanges(poolType, sanitiserType)
+  const flags: string[] = []
+  const criticalFlags: string[] = []
+
+  for (const [key, range] of Object.entries(ranges)) {
+    const val = values[key as keyof WaterTestValues]
+    if (val === undefined || val === null) continue
+    if (val < range.min || val > range.max) {
+      flags.push(key)
+      if (range.priority === 'critical') criticalFlags.push(key)
+    }
+  }
+
+  let riskLevel: RiskLevel = 'green'
+  if (criticalFlags.length >= 1) {
+    // pH outside 6.8–8.2 or FC < 0.5 = RED (immediate closure risk)
+    const phVal = values.ph
+    const fcVal = values.freeChlorine
+    if ((phVal !== undefined && (phVal < 6.8 || phVal > 8.2)) ||
+        (fcVal !== undefined && fcVal < 0.5)) {
+      riskLevel = 'red'
+    } else {
+      riskLevel = 'orange'
+    }
+  } else if (flags.length >= 2) {
+    riskLevel = 'orange'
+  } else if (flags.length === 1) {
+    riskLevel = 'yellow'
+  }
+
+  return { riskLevel, flags, criticalFlags }
+}
+
+// ── Langelier Saturation Index (scale balance) ────────────────────────────────
+// LSI = pH - pHs
+// pHs = pK2 - pKsp + pCa + pAlk
+export function calculateLSI(ph: number, tempC: number, calciumHardness: number, totalAlkalinity: number): number {
+  const tempF = (tempC * 9) / 5 + 32
+  const tf = 0.8 + (tempF / 100)
+  const pHs = (9.3 + tf) - (Math.log10(calciumHardness) - 0.4) - Math.log10(totalAlkalinity)
+  return Math.round((ph - pHs) * 100) / 100
+}
+
+// ── Chemical dose calculator ───────────────────────────────────────────────────
+// Returns: how much chemical to add (and what chemical) to hit target
+
+export interface DoseRecommendation {
+  parameter: string
+  currentValue: number
+  targetValue: number
+  chemical: string
+  dose: string
+  direction: 'increase' | 'decrease'
+  notes?: string
+}
+
+export function calculateDoses(
+  values: WaterTestValues,
+  poolType: PoolType,
+  sanitiserType: SanitiserType,
+  volumeLitres: number
+): DoseRecommendation[] {
+  const ranges = getRanges(poolType, sanitiserType)
+  const recs: DoseRecommendation[] = []
+  const volKL = volumeLitres / 1000
+
+  // Free Chlorine — prioritise first
+  if (values.freeChlorine !== undefined && ranges.freeChlorine) {
+    const r = ranges.freeChlorine
+    if (values.freeChlorine < r.min) {
+      const deficit = r.ideal - values.freeChlorine  // ppm deficit
+      // Liquid chlorine (12.5%) ≈ 0.8 kg raises 1 ppm per 100kL
+      const litres = ((deficit / 1) * (volKL / 100) * 0.8).toFixed(1)
+      recs.push({
+        parameter: 'Free Chlorine',
+        currentValue: values.freeChlorine,
+        targetValue: r.ideal,
+        chemical: 'Liquid Chlorine (12.5%)',
+        dose: `${litres} L`,
+        direction: 'increase',
+        notes: 'Add in small increments. Re-test after 30 minutes circulation.',
+      })
+    } else if (values.freeChlorine > r.max) {
+      recs.push({
+        parameter: 'Free Chlorine',
+        currentValue: values.freeChlorine,
+        targetValue: r.max,
+        chemical: 'None — dilute or wait',
+        dose: 'Allow to naturally dissipate (sunlight and bather load). Consider partial drain and refill if significantly elevated.',
+        direction: 'decrease',
+      })
+    }
+  }
+
+  // pH
+  if (values.ph !== undefined && ranges.ph) {
+    const r = ranges.ph
+    if (values.ph < r.min) {
+      const deficit = r.ideal - values.ph
+      const kg = ((deficit / 0.1) * (volKL / 100) * 0.18).toFixed(2)
+      recs.push({
+        parameter: 'pH',
+        currentValue: values.ph,
+        targetValue: r.ideal,
+        chemical: 'pH Up (Sodium Carbonate / Soda Ash)',
+        dose: `${kg} kg`,
+        direction: 'increase',
+        notes: 'Pre-dissolve in bucket of water. Add with pump running. Re-test after 4 hours.',
+      })
+    } else if (values.ph > r.max) {
+      const excess = values.ph - r.ideal
+      const L = ((excess / 0.1) * (volKL / 100) * 0.12).toFixed(1)
+      recs.push({
+        parameter: 'pH',
+        currentValue: values.ph,
+        targetValue: r.ideal,
+        chemical: 'pH Down (Muriatic / Hydrochloric Acid)',
+        dose: `${L} L`,
+        direction: 'decrease',
+        notes: 'Add acid SLOWLY with pump running — never add water to acid. Re-test after 4 hours.',
+      })
+    }
+  }
+
+  // Total Alkalinity
+  if (values.totalAlkalinity !== undefined && ranges.totalAlkalinity) {
+    const r = ranges.totalAlkalinity
+    if (values.totalAlkalinity < r.min) {
+      const deficit = r.ideal - values.totalAlkalinity
+      const kg = ((deficit / 10) * (volKL / 100) * 1.5).toFixed(2)
+      recs.push({
+        parameter: 'Total Alkalinity',
+        currentValue: values.totalAlkalinity,
+        targetValue: r.ideal,
+        chemical: 'Alkalinity Up (Sodium Bicarbonate)',
+        dose: `${kg} kg`,
+        direction: 'increase',
+        notes: 'Broadcast across pool surface with pump running. Re-test after 6 hours.',
+      })
+    } else if (values.totalAlkalinity > r.max) {
+      const excess = values.totalAlkalinity - r.ideal
+      const L = ((excess / 10) * (volKL / 100) * 1.0).toFixed(1)
+      recs.push({
+        parameter: 'Total Alkalinity',
+        currentValue: values.totalAlkalinity,
+        targetValue: r.ideal,
+        chemical: 'pH Down (Muriatic Acid)',
+        dose: `${L} L`,
+        direction: 'decrease',
+        notes: 'Add to deep end with pump off. Allow to disperse before turning pump on.',
+      })
+    }
+  }
+
+  // Calcium Hardness
+  if (values.calciumHardness !== undefined && ranges.calciumHardness) {
+    const r = ranges.calciumHardness
+    if (values.calciumHardness < r.min) {
+      const deficit = r.ideal - values.calciumHardness
+      const kg = ((deficit / 10) * (volKL / 100) * 1.5).toFixed(2)
+      recs.push({
+        parameter: 'Calcium Hardness',
+        currentValue: values.calciumHardness,
+        targetValue: r.ideal,
+        chemical: 'Calcium Chloride (Hardness Up)',
+        dose: `${kg} kg`,
+        direction: 'increase',
+        notes: 'Pre-dissolve in bucket of water. Add with pump running. Changes gradually — re-test next day.',
+      })
+    } else if (values.calciumHardness > r.max) {
+      recs.push({
+        parameter: 'Calcium Hardness',
+        currentValue: values.calciumHardness,
+        targetValue: r.max,
+        chemical: 'Partial drain and refill',
+        dose: `Drain approx ${Math.round((values.calciumHardness - r.ideal) / values.calciumHardness * 100)}% of pool volume and refill with fresh water`,
+        direction: 'decrease',
+        notes: 'Calcium cannot be chemically reduced — dilution is the only option.',
+      })
+    }
+  }
+
+  // Salt (saltwater pools)
+  if (values.saltLevel !== undefined && ranges.saltLevel) {
+    const r = ranges.saltLevel
+    if (values.saltLevel < r.min) {
+      const deficit = r.ideal - values.saltLevel
+      const kg = ((deficit / 1000) * volumeLitres * 1.0).toFixed(0)
+      recs.push({
+        parameter: 'Salt Level',
+        currentValue: values.saltLevel,
+        targetValue: r.ideal,
+        chemical: 'Pool Grade Salt (NaCl)',
+        dose: `${kg} kg`,
+        direction: 'increase',
+        notes: 'Pre-dissolve or broadcast evenly. Allow 24 hours to fully dissolve before re-testing.',
+      })
+    } else if (values.saltLevel > r.max) {
+      const excess = values.saltLevel - r.ideal
+      const pct = Math.round((excess / values.saltLevel) * 100)
+      recs.push({
+        parameter: 'Salt Level',
+        currentValue: values.saltLevel,
+        targetValue: r.ideal,
+        chemical: 'Partial drain and refill with fresh water',
+        dose: `Drain and replace approximately ${pct}% of pool volume`,
+        direction: 'decrease',
+      })
+    }
+  }
+
+  // Cyanuric Acid (stabiliser)
+  if (values.cyanuricAcid !== undefined && ranges.cyanuricAcid) {
+    const r = ranges.cyanuricAcid
+    if (r.max === 0) {
+      // Indoor pool — CYA should be zero
+      if (values.cyanuricAcid > 5) {
+        recs.push({
+          parameter: 'Cyanuric Acid',
+          currentValue: values.cyanuricAcid,
+          targetValue: 0,
+          chemical: 'Partial drain and refill',
+          dose: `Drain and replace ${Math.round((values.cyanuricAcid / values.cyanuricAcid) * 100)}% of pool`,
+          direction: 'decrease',
+          notes: 'Cyanuric acid cannot be removed chemically. For indoor pools it should be 0.',
+        })
+      }
+    } else if (values.cyanuricAcid < r.min) {
+      const deficit = r.ideal - values.cyanuricAcid
+      const kg = ((deficit / 10) * (volKL / 100) * 1.3).toFixed(2)
+      recs.push({
+        parameter: 'Cyanuric Acid',
+        currentValue: values.cyanuricAcid,
+        targetValue: r.ideal,
+        chemical: 'Stabiliser (Cyanuric Acid / Isocyanuric Acid)',
+        dose: `${kg} kg`,
+        direction: 'increase',
+        notes: 'Dissolve in bucket of warm water. Changes very slowly — re-test after 48 hours.',
+      })
+    } else if (values.cyanuricAcid > r.max) {
+      recs.push({
+        parameter: 'Cyanuric Acid',
+        currentValue: values.cyanuricAcid,
+        targetValue: r.ideal,
+        chemical: 'Partial drain and refill',
+        dose: `Drain approx ${Math.round(((values.cyanuricAcid - r.ideal) / values.cyanuricAcid) * 100)}% of pool`,
+        direction: 'decrease',
+        notes: 'Cyanuric acid cannot be chemically removed.',
+      })
+    }
+  }
+
+  return recs
+}
+
+export const RISK_COLOURS: Record<RiskLevel, string> = {
+  green:  '#00b894',
+  yellow: '#fdcb6e',
+  orange: '#e17055',
+  red:    '#d63031',
+}
+
+export const RISK_LABELS: Record<RiskLevel, string> = {
+  green:  'Compliant',
+  yellow: 'Monitor',
+  orange: 'Action Required',
+  red:    'Close Pool',
+}
