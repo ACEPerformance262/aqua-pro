@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Droplets, AlertTriangle, CheckCircle, Activity, LogOut } from 'lucide-react'
+import ReportIssueButton from '@/components/ReportIssueButton'
 import { RISK_COLOURS, RISK_LABELS } from '@/lib/water-chemistry'
 
 export default function PoolManagerPage() {
@@ -46,6 +47,7 @@ export default function PoolManagerPage() {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {user && <span style={{ fontSize: '13px', color: '#64748b' }}>{user.firstName} {user.lastName}</span>}
+          <ReportIssueButton />
           <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
             <LogOut size={18} />
           </button>

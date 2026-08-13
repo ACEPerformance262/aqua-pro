@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { queueIfLowStock } from '@/lib/chemical-orders'
 
 export async function GET(req: NextRequest) {
   const user = await getSession()
@@ -62,6 +63,7 @@ export async function POST(req: NextRequest) {
         .from('chemicals')
         .update({ current_stock: Math.max(0, Number(chem.current_stock) - Number(body.quantity)) })
         .eq('id', body.chemical_id)
+      await queueIfLowStock(body.chemical_id)
     }
     return NextResponse.json({ usage })
   }
@@ -74,7 +76,19 @@ export async function POST(req: NextRequest) {
       .select()
       .single()
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await queueIfLowStock(body.id)
     return NextResponse.json({ chemical: data })
+  }
+
+  if (body.action === 'stock_take') {
+    const counts = body.counts as { id: string; current_stock: number }[]
+    const results = await Promise.all(counts.map(c =>
+      supabaseAdmin.from('chemicals').update({ current_stock: c.current_stock }).eq('id', c.id).select().single()
+    ))
+    const error = results.find(r => r.error)?.error
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await Promise.all(counts.map(c => queueIfLowStock(c.id)))
+    return NextResponse.json({ chemicals: results.map(r => r.data) })
   }
 
   // Create chemical
@@ -109,5 +123,6 @@ export async function PATCH(req: NextRequest) {
     .select()
     .single()
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if ('current_stock' in updates || 'reorder_point' in updates) await queueIfLowStock(id)
   return NextResponse.json({ chemical: data })
 }

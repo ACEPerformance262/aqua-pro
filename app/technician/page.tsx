@@ -1,9 +1,11 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Droplets, MapPin, CheckCircle, Clock, ChevronRight, LogOut, ClipboardList } from 'lucide-react'
+import { Droplets, MapPin, CheckCircle, Clock, ChevronRight, LogOut, ClipboardList, FlaskConical } from 'lucide-react'
 import { RISK_COLOURS, RISK_LABELS } from '@/lib/water-chemistry'
 import ShiftChecklist from '@/components/ShiftChecklist'
+import PlantLog from '@/components/PlantLog'
+import ReportIssueButton from '@/components/ReportIssueButton'
 
 export default function TechnicianPage() {
   const [user, setUser] = useState<any>(null)
@@ -12,6 +14,7 @@ export default function TechnicianPage() {
   const [selected, setSelected] = useState<any>(null)
   const [showTestForm, setShowTestForm] = useState(false)
   const [showChecklist, setShowChecklist] = useState(false)
+  const [showPlantLog, setShowPlantLog] = useState(false)
   const [testForm, setTestForm] = useState({
     free_chlorine: '', combined_chlorine: '', ph: '', total_alkalinity: '',
     calcium_hardness: '', cyanuric_acid: '', salt_level: '', phosphates: '',
@@ -108,9 +111,12 @@ export default function TechnicianPage() {
               {user && <div style={{ fontSize: '11px', color: '#64748b' }}>{user.firstName} {user.lastName}</div>}
             </div>
           </div>
-          <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
-            <LogOut size={18} />
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <ReportIssueButton />
+            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+              <LogOut size={18} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -223,6 +229,12 @@ export default function TechnicianPage() {
                   <Droplets size={16} /> Log Water Test
                 </button>
               )}
+              {selected.pool_id && (
+                <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', background: '#0d6e4e' }}
+                  onClick={() => setShowPlantLog(true)}>
+                  <FlaskConical size={16} /> Plant Room Log
+                </button>
+              )}
               {selected.status !== 'completed' && (
                 <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
                   onClick={() => handleCompleteShift(selected.id)}>
@@ -293,6 +305,17 @@ export default function TechnicianPage() {
           staffName={user ? `${user.firstName} ${user.lastName}` : ''}
           onClose={() => setShowChecklist(false)}
           onSubmitted={() => { setShowChecklist(false); setSelected(null) }}
+        />
+      )}
+
+      {/* Plant room log */}
+      {showPlantLog && selected && (
+        <PlantLog
+          poolId={selected.pool_id ?? ''}
+          poolName={selected.pools?.name ?? 'Plant Room'}
+          shiftId={selected.id}
+          onClose={() => setShowPlantLog(false)}
+          onSubmitted={() => { setShowPlantLog(false); setSelected(null) }}
         />
       )}
     </div>

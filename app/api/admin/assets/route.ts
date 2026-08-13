@@ -54,3 +54,34 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ asset: data })
 }
+
+export async function PATCH(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager', 'technician'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, ...rest } = body
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const updates: Record<string, unknown> = {}
+  for (const key of [
+    'pool_id', 'category_id', 'name', 'manufacturer', 'model', 'serial_number',
+    'install_date', 'warranty_expiry', 'condition', 'location_description',
+    'next_service_date', 'notes', 'is_active',
+  ]) {
+    if (key in rest) updates[key] = rest[key] || null
+  }
+  if ('expected_lifespan_years' in rest) updates.expected_lifespan_years = rest.expected_lifespan_years ? Number(rest.expected_lifespan_years) : null
+  if ('replacement_cost' in rest) updates.replacement_cost = rest.replacement_cost ? Number(rest.replacement_cost) : null
+  if ('is_active' in rest) updates.is_active = rest.is_active
+
+  const { data, error } = await supabaseAdmin
+    .from('assets')
+    .update(updates)
+    .eq('id', id)
+    .select('*, pools(name), asset_categories(name, inspection_interval_days)')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ asset: data })
+}

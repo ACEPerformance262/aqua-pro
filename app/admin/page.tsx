@@ -5,11 +5,13 @@ import {
   Droplets, Users, ClipboardList, Package,
   AlertTriangle, Wifi, BarChart2, LogOut, Plus,
   Activity, Shield, MapPin, Bell, FlaskConical,
-  XCircle, Wrench, CalendarX, Check, Trash2,
+  XCircle, Wrench, CalendarX, Check, Trash2, Bug,
+  ChevronUp, ChevronDown, Pencil, Power,
 } from 'lucide-react'
 import { RISK_COLOURS, RISK_LABELS } from '@/lib/water-chemistry'
+import ReportIssueButton from '@/components/ReportIssueButton'
 
-type Tab = 'overview' | 'pools' | 'water-testing' | 'staff' | 'checklists' | 'assets' | 'compliance' | 'risk' | 'remote-sites' | 'chemicals' | 'closures'
+type Tab = 'overview' | 'pools' | 'water-testing' | 'staff' | 'checklists' | 'assets' | 'compliance' | 'risk' | 'remote-sites' | 'chemicals' | 'closures' | 'errors'
 
 const NAV: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview',      label: 'Overview',       icon: BarChart2 },
@@ -23,6 +25,7 @@ const NAV: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'closures',      label: 'Pool Closures',  icon: XCircle },
   { id: 'risk',          label: 'Risk',           icon: AlertTriangle },
   { id: 'remote-sites',  label: 'Remote Sites',   icon: Wifi },
+  { id: 'errors',        label: 'Error Log',      icon: Bug },
 ]
 
 // ── Shared style objects ───────────────────────────────────────────────────────
@@ -168,17 +171,20 @@ function OverviewTab() {
 }
 
 // ── POOLS TAB ─────────────────────────────────────────────────────────────────
+const BLANK_POOL_FORM = {
+  name: '', site_code: '', address: '', suburb: '', state: 'VIC', postcode: '',
+  pool_type: 'outdoor', sanitiser_type: 'chlorine', volume_litres: '',
+  surface_area_m2: '', max_bather_load: '', owner_name: '', owner_email: '',
+  owner_phone: '', is_commercial: false, health_licence_number: '',
+  licence_expiry: '', notes: '',
+}
+
 function PoolsTab() {
   const [pools, setPools] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
-  const [form, setForm] = useState({
-    name: '', site_code: '', address: '', suburb: '', state: 'VIC', postcode: '',
-    pool_type: 'outdoor', sanitiser_type: 'chlorine', volume_litres: '',
-    surface_area_m2: '', max_bather_load: '', owner_name: '', owner_email: '',
-    owner_phone: '', is_commercial: false, health_licence_number: '',
-    licence_expiry: '', notes: '',
-  })
+  const [editingPool, setEditingPool] = useState<any>(null)
+  const [form, setForm] = useState(BLANK_POOL_FORM)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
@@ -189,12 +195,34 @@ function PoolsTab() {
   }, [])
   useEffect(() => { load() }, [load])
 
+  function openAdd() {
+    setEditingPool(null)
+    setForm(BLANK_POOL_FORM)
+    setShowModal(true)
+  }
+
+  function openEdit(pool: any) {
+    setEditingPool(pool)
+    setForm({
+      name: pool.name ?? '', site_code: pool.site_code ?? '', address: pool.address ?? '',
+      suburb: pool.suburb ?? '', state: pool.state ?? 'VIC', postcode: pool.postcode ?? '',
+      pool_type: pool.pool_type ?? 'outdoor', sanitiser_type: pool.sanitiser_type ?? 'chlorine',
+      volume_litres: pool.volume_litres ?? '', surface_area_m2: pool.surface_area_m2 ?? '',
+      max_bather_load: pool.max_bather_load ?? '', owner_name: pool.owner_name ?? '',
+      owner_email: pool.owner_email ?? '', owner_phone: pool.owner_phone ?? '',
+      is_commercial: pool.is_commercial ?? false, health_licence_number: pool.health_licence_number ?? '',
+      licence_expiry: pool.licence_expiry ?? '', notes: pool.notes ?? '',
+    })
+    setShowModal(true)
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const res = await fetch('/api/admin/pools', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      method: editingPool ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingPool ? { id: editingPool.id, ...form } : form),
     })
     if (res.ok) { setShowModal(false); load() }
     setSaving(false)
@@ -204,7 +232,7 @@ function PoolsTab() {
     <>
       <div style={s.header}>
         <div style={s.pageTitle}>Pool Register</div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openAdd}>
           <Plus size={16} /> Add Pool
         </button>
       </div>
@@ -223,7 +251,7 @@ function PoolsTab() {
             ) : pools.length === 0 ? (
               <tr><td colSpan={8} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No pools yet — add your first pool</td></tr>
             ) : pools.map((p: any) => (
-              <tr key={p.id} style={{ cursor: 'pointer' }}>
+              <tr key={p.id} style={{ cursor: 'pointer' }} onClick={() => openEdit(p)}>
                 <td><code style={{ color: 'var(--aqua)', fontSize: '12px' }}>{p.site_code}</code></td>
                 <td style={{ fontWeight: '600' }}>
                   <div>{p.name}</div>
@@ -253,7 +281,7 @@ function PoolsTab() {
       {showModal && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
           <div className="modal" style={{ maxWidth: '640px' }}>
-            <div className="modal-title">Add Pool</div>
+            <div className="modal-title">{editingPool ? 'Edit Pool' : 'Add Pool'}</div>
             <form onSubmit={handleSave}>
               <div style={s.formGrid}>
                 <div style={s.formGroup}>
@@ -340,7 +368,7 @@ function PoolsTab() {
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Pool'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingPool ? 'Save Changes' : 'Add Pool'}</button>
               </div>
             </form>
           </div>
@@ -653,17 +681,24 @@ function StaffTab() {
   const [unavailability, setUnavailability] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddShift, setShowAddShift] = useState(false)
+  const [editingShift, setEditingShift] = useState<any>(null)
   const [showAddRoute, setShowAddRoute] = useState(false)
+  const [editingRoute, setEditingRoute] = useState<any>(null)
   const [selectedRoute, setSelectedRoute] = useState<any>(null)
   const [showAddPool, setShowAddPool] = useState(false)
   const [showAddUnavail, setShowAddUnavail] = useState(false)
+  const [showStaffModal, setShowStaffModal] = useState(false)
+  const [editingStaffMember, setEditingStaffMember] = useState<any>(null)
   const [form, setForm] = useState({
     staff_id: '', pool_id: '', shift_type: 'service_visit',
-    scheduled_start: '', scheduled_end: '', notes: '',
+    scheduled_start: '', scheduled_end: '', notes: '', status: 'scheduled',
   })
   const [routeForm, setRouteForm] = useState({ name: '', assigned_technician_id: '', notes: '' })
   const [routePoolForm, setRoutePoolForm] = useState({ pool_id: '', service_frequency: 'weekly' })
   const [unavailForm, setUnavailForm] = useState({ staff_id: '', start_date: '', end_date: '', reason: '' })
+  const [staffForm, setStaffForm] = useState({
+    email: '', password: '', first_name: '', last_name: '', role: 'technician', phone: '', is_active: true,
+  })
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(() => {
@@ -684,15 +719,95 @@ function StaffTab() {
   }, [])
   useEffect(() => { load() }, [load])
 
+  function openAddShift() {
+    setEditingShift(null)
+    setForm({ staff_id: '', pool_id: '', shift_type: 'service_visit', scheduled_start: '', scheduled_end: '', notes: '', status: 'scheduled' })
+    setShowAddShift(true)
+  }
+
+  function openEditShift(sh: any) {
+    setEditingShift(sh)
+    setForm({
+      staff_id: sh.staff_id ?? '', pool_id: sh.pool_id ?? '', shift_type: sh.shift_type ?? 'service_visit',
+      scheduled_start: sh.scheduled_start?.slice(0, 16) ?? '', scheduled_end: sh.scheduled_end?.slice(0, 16) ?? '',
+      notes: sh.notes ?? '', status: sh.status ?? 'scheduled',
+    })
+    setShowAddShift(true)
+  }
+
   async function handleAddShift(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const res = await fetch('/api/admin/shifts', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      method: editingShift ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingShift ? { id: editingShift.id, ...form } : form),
     })
     if (res.ok) { setShowAddShift(false); load() }
     setSaving(false)
+  }
+
+  function openAddStaff() {
+    setEditingStaffMember(null)
+    setStaffForm({ email: '', password: '', first_name: '', last_name: '', role: 'technician', phone: '', is_active: true })
+    setShowStaffModal(true)
+  }
+
+  function openEditStaff(m: any) {
+    setEditingStaffMember(m)
+    setStaffForm({ email: m.email ?? '', password: '', first_name: m.first_name ?? '', last_name: m.last_name ?? '', role: m.role ?? 'technician', phone: m.phone ?? '', is_active: m.is_active ?? true })
+    setShowStaffModal(true)
+  }
+
+  async function handleSaveStaff(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const payload: any = { ...staffForm }
+    if (!payload.password) delete payload.password
+    const res = await fetch('/api/admin/staff', {
+      method: editingStaffMember ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingStaffMember ? { id: editingStaffMember.id, ...payload } : payload),
+    })
+    if (res.ok) { setShowStaffModal(false); load() }
+    setSaving(false)
+  }
+
+  function openAddRoute() {
+    setEditingRoute(null)
+    setRouteForm({ name: '', assigned_technician_id: '', notes: '' })
+    setShowAddRoute(true)
+  }
+
+  function openEditRoute(route: any) {
+    setEditingRoute(route)
+    setRouteForm({ name: route.name ?? '', assigned_technician_id: route.assigned_technician_id ?? '', notes: route.notes ?? '' })
+    setShowAddRoute(true)
+  }
+
+  async function handleSaveRoute(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const res = await fetch('/api/admin/routes', {
+      method: editingRoute ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingRoute ? { id: editingRoute.id, ...routeForm } : routeForm),
+    })
+    if (res.ok) { setShowAddRoute(false); setRouteForm({ name: '', assigned_technician_id: '', notes: '' }); load() }
+    setSaving(false)
+  }
+
+  async function moveRoutePool(route: any, poolId: string, direction: -1 | 1) {
+    const sorted = [...(route.route_pools ?? [])].sort((a: any, b: any) => a.visit_order - b.visit_order)
+    const idx = sorted.findIndex((rp: any) => rp.pool_id === poolId)
+    const swapIdx = idx + direction
+    if (idx === -1 || swapIdx < 0 || swapIdx >= sorted.length) return
+    const a = sorted[idx], b = sorted[swapIdx]
+    await fetch(`/api/admin/routes/${route.id}/pools`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reorder', pools: [{ pool_id: a.pool_id, visit_order: b.visit_order }, { pool_id: b.pool_id, visit_order: a.visit_order }] }),
+    })
+    load()
   }
 
   const shiftTypeColour: Record<string, string> = {
@@ -711,9 +826,16 @@ function StaffTab() {
     <>
       <div style={s.header}>
         <div style={s.pageTitle}>Staff & Scheduling</div>
-        <button className="btn btn-primary" onClick={() => setShowAddShift(true)}>
-          <Plus size={16} /> Add Shift
-        </button>
+        {tab === 'shifts' && (
+          <button className="btn btn-primary" onClick={openAddShift}>
+            <Plus size={16} /> Add Shift
+          </button>
+        )}
+        {tab === 'staff' && (
+          <button className="btn btn-primary" onClick={openAddStaff}>
+            <Plus size={16} /> Add Staff
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
@@ -739,7 +861,7 @@ function StaffTab() {
               ) : shifts.length === 0 ? (
                 <tr><td colSpan={6} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No shifts scheduled</td></tr>
               ) : shifts.map((sh: any) => (
-                <tr key={sh.id}>
+                <tr key={sh.id} style={{ cursor: 'pointer' }} onClick={() => openEditShift(sh)}>
                   <td style={{ fontWeight: '600' }}>
                     {sh.staff ? `${sh.staff.first_name} ${sh.staff.last_name}` : '—'}
                   </td>
@@ -770,30 +892,91 @@ function StaffTab() {
       )}
 
       {tab === 'staff' && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Status</th></tr>
-            </thead>
-            <tbody>
-              {staff.map((m: any) => (
-                <tr key={m.id}>
-                  <td style={{ fontWeight: '600' }}>{m.first_name} {m.last_name}</td>
-                  <td><span style={s.badge('#00b4d8')}>{m.role}</span></td>
-                  <td style={{ color: 'var(--text-muted)' }}>{m.email}</td>
-                  <td style={{ color: 'var(--text-muted)' }}>{m.phone ?? '—'}</td>
-                  <td><span style={s.badge(m.is_active ? '#00b894' : '#64748b')}>{m.is_active ? 'Active' : 'Inactive'}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Role</th><th>Email</th><th>Phone</th><th>Last Login</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {staff.map((m: any) => {
+                  const lastLogin = m.last_login_at ? new Date(m.last_login_at) : null
+                  const staleLogin = lastLogin && (Date.now() - lastLogin.getTime()) > 1000 * 60 * 60 * 24 * 30
+                  return (
+                    <tr key={m.id} style={{ cursor: 'pointer' }} onClick={() => openEditStaff(m)}>
+                      <td style={{ fontWeight: '600' }}>{m.first_name} {m.last_name}</td>
+                      <td><span style={s.badge('#00b4d8')}>{m.role}</span></td>
+                      <td style={{ color: 'var(--text-muted)' }}>{m.email}</td>
+                      <td style={{ color: 'var(--text-muted)' }}>{m.phone ?? '—'}</td>
+                      <td style={{ color: staleLogin ? 'var(--orange)' : 'var(--text-muted)', fontSize: '12px' }}>
+                        {lastLogin ? lastLogin.toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short' }) : 'Never'}
+                      </td>
+                      <td><span style={s.badge(m.is_active ? '#00b894' : '#64748b')}>{m.is_active ? 'Active' : 'Inactive'}</span></td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {showStaffModal && (
+            <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowStaffModal(false) }}>
+              <div className="modal" style={{ maxWidth: '480px' }}>
+                <div className="modal-title">{editingStaffMember ? 'Edit Staff Member' : 'Add Staff Member'}</div>
+                <form onSubmit={handleSaveStaff}>
+                  <div style={s.formGrid}>
+                    <div style={s.formGroup}>
+                      <label>First Name *</label>
+                      <input required value={staffForm.first_name} onChange={e => setStaffForm(f => ({ ...f, first_name: e.target.value }))} />
+                    </div>
+                    <div style={s.formGroup}>
+                      <label>Last Name *</label>
+                      <input required value={staffForm.last_name} onChange={e => setStaffForm(f => ({ ...f, last_name: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div style={s.formGroup}>
+                    <label>Email *</label>
+                    <input required type="email" value={staffForm.email} onChange={e => setStaffForm(f => ({ ...f, email: e.target.value }))} />
+                  </div>
+                  <div style={s.formGroup}>
+                    <label>{editingStaffMember ? 'Reset Password (leave blank to keep current)' : 'Password *'}</label>
+                    <input required={!editingStaffMember} type="password" value={staffForm.password} onChange={e => setStaffForm(f => ({ ...f, password: e.target.value }))} />
+                  </div>
+                  <div style={s.formGrid}>
+                    <div style={s.formGroup}>
+                      <label>Role *</label>
+                      <select required value={staffForm.role} onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))}>
+                        {['admin','manager','technician','contractor','pool_manager'].map(r => (
+                          <option key={r} value={r}>{r.replace('_', ' ')}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={s.formGroup}>
+                      <label>Phone</label>
+                      <input value={staffForm.phone} onChange={e => setStaffForm(f => ({ ...f, phone: e.target.value }))} />
+                    </div>
+                  </div>
+                  {editingStaffMember && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '16px' }}>
+                      <input type="checkbox" checked={staffForm.is_active} onChange={e => setStaffForm(f => ({ ...f, is_active: e.target.checked }))} />
+                      <span style={{ fontSize: '13px', color: 'var(--text)' }}>Active</span>
+                    </label>
+                  )}
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowStaffModal(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingStaffMember ? 'Save Changes' : 'Add Staff'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {tab === 'routes' && (
         <>
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
-            <button className="btn btn-primary" onClick={() => setShowAddRoute(true)}>
+            <button className="btn btn-primary" onClick={openAddRoute}>
               <Plus size={15} /> Add Route
             </button>
           </div>
@@ -822,6 +1005,10 @@ function StaffTab() {
                     onClick={() => setSelectedRoute(selectedRoute?.id === route.id ? null : route)}>
                     {selectedRoute?.id === route.id ? 'Collapse' : 'Manage Pools'}
                   </button>
+                  <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}
+                    onClick={() => openEditRoute(route)}>
+                    Edit
+                  </button>
                   <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px', color: 'var(--red)' }}
                     onClick={async () => {
                       if (!confirm(`Delete route "${route.name}"?`)) return
@@ -844,25 +1031,38 @@ function StaffTab() {
                     </div>
                     {(route.route_pools ?? []).length === 0 ? (
                       <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '12px 0' }}>No pools assigned — add pools to define the visit order.</div>
-                    ) : [...(route.route_pools ?? [])].sort((a: any, b: any) => a.visit_order - b.visit_order).map((rp: any, idx: number) => (
-                      <div key={rp.pool_id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #1a2d4530' }}>
-                        <span style={{ width: '24px', height: '24px', borderRadius: '99px', background: 'var(--aqua)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>{idx + 1}</span>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontWeight: '600' }}>{rp.pools?.name ?? rp.pool_id}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rp.pools?.address} · {rp.service_frequency}</div>
+                    ) : (() => {
+                      const sortedPools = [...(route.route_pools ?? [])].sort((a: any, b: any) => a.visit_order - b.visit_order)
+                      return sortedPools.map((rp: any, idx: number) => (
+                        <div key={rp.pool_id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #1a2d4530' }}>
+                          <span style={{ width: '24px', height: '24px', borderRadius: '99px', background: 'var(--aqua)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: '700', flexShrink: 0 }}>{idx + 1}</span>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontWeight: '600' }}>{rp.pools?.name ?? rp.pool_id}</div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{rp.pools?.address} · {rp.service_frequency}</div>
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <button disabled={idx === 0} style={{ background: 'none', border: 'none', cursor: idx === 0 ? 'default' : 'pointer', color: idx === 0 ? 'var(--text-dim)' : 'var(--text-muted)', padding: 0 }}
+                              onClick={() => moveRoutePool(route, rp.pool_id, -1)}>
+                              <ChevronUp size={16} />
+                            </button>
+                            <button disabled={idx === sortedPools.length - 1} style={{ background: 'none', border: 'none', cursor: idx === sortedPools.length - 1 ? 'default' : 'pointer', color: idx === sortedPools.length - 1 ? 'var(--text-dim)' : 'var(--text-muted)', padding: 0 }}
+                              onClick={() => moveRoutePool(route, rp.pool_id, 1)}>
+                              <ChevronDown size={16} />
+                            </button>
+                          </div>
+                          <button className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--red)' }}
+                            onClick={async () => {
+                              await fetch(`/api/admin/routes/${route.id}/pools`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ action: 'remove', pool_id: rp.pool_id }),
+                              })
+                              load()
+                            }}>
+                            Remove
+                          </button>
                         </div>
-                        <button className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--red)' }}
-                          onClick={async () => {
-                            await fetch(`/api/admin/routes/${route.id}/pools`, {
-                              method: 'POST', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ action: 'remove', pool_id: rp.pool_id }),
-                            })
-                            load()
-                          }}>
-                          Remove
-                        </button>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                 </div>
               )}
@@ -872,17 +1072,8 @@ function StaffTab() {
           {showAddRoute && (
             <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowAddRoute(false) }}>
               <div className="modal" style={{ maxWidth: '480px' }}>
-                <div className="modal-title">Add Service Route</div>
-                <form onSubmit={async (e) => {
-                  e.preventDefault()
-                  setSaving(true)
-                  const res = await fetch('/api/admin/routes', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(routeForm),
-                  })
-                  if (res.ok) { setShowAddRoute(false); setRouteForm({ name: '', assigned_technician_id: '', notes: '' }); load() }
-                  setSaving(false)
-                }}>
+                <div className="modal-title">{editingRoute ? 'Edit Service Route' : 'Add Service Route'}</div>
+                <form onSubmit={handleSaveRoute}>
                   <div style={s.formGroup}>
                     <label>Route Name *</label>
                     <input required value={routeForm.name} onChange={e => setRouteForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. North Route" />
@@ -902,7 +1093,7 @@ function StaffTab() {
                   </div>
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button type="button" className="btn btn-secondary" onClick={() => setShowAddRoute(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Create Route'}</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingRoute ? 'Save Changes' : 'Create Route'}</button>
                   </div>
                 </form>
               </div>
@@ -1053,7 +1244,7 @@ function StaffTab() {
       {showAddShift && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowAddShift(false) }}>
           <div className="modal">
-            <div className="modal-title">Add Shift</div>
+            <div className="modal-title">{editingShift ? 'Edit Shift' : 'Add Shift'}</div>
             <form onSubmit={handleAddShift}>
               <div style={s.formGroup}>
                 <label>Technician *</label>
@@ -1091,13 +1282,23 @@ function StaffTab() {
                     onChange={e => setForm(f => ({ ...f, scheduled_end: e.target.value }))} />
                 </div>
               </div>
+              {editingShift && (
+                <div style={s.formGroup}>
+                  <label>Status</label>
+                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+                    {['scheduled','in_progress','completed','cancelled'].map(st => (
+                      <option key={st} value={st}>{st.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div style={s.formGroup}>
                 <label>Notes</label>
                 <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowAddShift(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Shift'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingShift ? 'Save Changes' : 'Add Shift'}</button>
               </div>
             </form>
           </div>
@@ -1114,6 +1315,7 @@ function AssetsTab() {
   const [categories, setCategories] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingAsset, setEditingAsset] = useState<any>(null)
   const [serviceLogAsset, setServiceLogAsset] = useState<any>(null)
   const [serviceLogs, setServiceLogs] = useState<any[]>([])
   const [showServiceForm, setShowServiceForm] = useState(false)
@@ -1142,15 +1344,50 @@ function AssetsTab() {
   }, [filterPool])
   useEffect(() => { load() }, [load])
 
+  const BLANK_ASSET_FORM = {
+    pool_id: '', category_id: '', name: '', manufacturer: '', model: '',
+    serial_number: '', install_date: '', warranty_expiry: '', expected_lifespan_years: '',
+    replacement_cost: '', condition: 'good', location_description: '', next_service_date: '', notes: '',
+  }
+
+  function openAddAsset() {
+    setEditingAsset(null)
+    setForm(BLANK_ASSET_FORM)
+    setShowModal(true)
+  }
+
+  function openEditAsset(a: any) {
+    setEditingAsset(a)
+    setForm({
+      pool_id: a.pool_id ?? '', category_id: a.category_id ?? '', name: a.name ?? '',
+      manufacturer: a.manufacturer ?? '', model: a.model ?? '', serial_number: a.serial_number ?? '',
+      install_date: a.install_date ?? '', warranty_expiry: a.warranty_expiry ?? '',
+      expected_lifespan_years: a.expected_lifespan_years ?? '', replacement_cost: a.replacement_cost ?? '',
+      condition: a.condition ?? 'good', location_description: a.location_description ?? '',
+      next_service_date: a.next_service_date ?? '', notes: a.notes ?? '',
+    })
+    setShowModal(true)
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const res = await fetch('/api/admin/assets', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      method: editingAsset ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingAsset ? { id: editingAsset.id, ...form } : form),
     })
     if (res.ok) { setShowModal(false); load() }
     setSaving(false)
+  }
+
+  async function toggleAssetActive(a: any) {
+    if (!confirm(`${a.is_active === false ? 'Reactivate' : 'Decommission'} "${a.name}"?`)) return
+    await fetch('/api/admin/assets', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: a.id, is_active: a.is_active === false }),
+    })
+    load()
   }
 
   const conditionColour: Record<string, string> = {
@@ -1161,7 +1398,7 @@ function AssetsTab() {
     <>
       <div style={s.header}>
         <div style={s.pageTitle}>Asset Register</div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openAddAsset}>
           <Plus size={16} /> Add Asset
         </button>
       </div>
@@ -1206,16 +1443,26 @@ function AssetsTab() {
                     {a.replacement_cost ? `$${Number(a.replacement_cost).toLocaleString()}` : '—'}
                   </td>
                   <td>
-                    <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}
-                      onClick={async () => {
-                        setServiceLogAsset(a)
-                        setShowServiceForm(false)
-                        const r = await fetch(`/api/admin/assets/${a.id}/service-log`)
-                        const d = await r.json()
-                        setServiceLogs(d.logs ?? [])
-                      }}>
-                      <Wrench size={12} /> Log
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}
+                        onClick={async () => {
+                          setServiceLogAsset(a)
+                          setShowServiceForm(false)
+                          const r = await fetch(`/api/admin/assets/${a.id}/service-log`)
+                          const d = await r.json()
+                          setServiceLogs(d.logs ?? [])
+                        }}>
+                        <Wrench size={12} /> Log
+                      </button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}
+                        onClick={() => openEditAsset(a)}>
+                        <Pencil size={12} />
+                      </button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px', color: 'var(--red)' }}
+                        onClick={() => toggleAssetActive(a)} title="Decommission">
+                        <Power size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -1321,7 +1568,7 @@ function AssetsTab() {
       {showModal && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
           <div className="modal" style={{ maxWidth: '640px' }}>
-            <div className="modal-title">Add Asset</div>
+            <div className="modal-title">{editingAsset ? 'Edit Asset' : 'Add Asset'}</div>
             <form onSubmit={handleSave}>
               <div style={s.formGrid}>
                 <div style={s.formGroup}>
@@ -1397,7 +1644,7 @@ function AssetsTab() {
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Asset'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingAsset ? 'Save Changes' : 'Add Asset'}</button>
               </div>
             </form>
           </div>
@@ -1435,6 +1682,15 @@ function ComplianceTab() {
     })
   }, [filterStatus])
   useEffect(() => { load() }, [load])
+
+  async function updateEventStatus(id: string, status: string) {
+    setEvents(prev => prev.map(ev => ev.id === id ? { ...ev, status } : ev))
+    await fetch('/api/admin/compliance', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
+    load()
+  }
 
   const statusColour: Record<string, string> = {
     pending: '#00b4d8', completed: '#00b894', overdue: '#d63031',
@@ -1488,7 +1744,12 @@ function ComplianceTab() {
                     <td style={{ color: new Date(ev.due_date) < new Date() && ev.status !== 'completed' ? 'var(--red)' : 'var(--text-muted)' }}>
                       {ev.due_date}
                     </td>
-                    <td><span style={s.badge(statusColour[ev.status] ?? '#64748b')}>{ev.status}</span></td>
+                    <td>
+                      <select value={ev.status} onChange={e => updateEventStatus(ev.id, e.target.value)}
+                        style={{ width: 'auto', padding: '4px 8px', fontSize: '12px', color: statusColour[ev.status], borderColor: (statusColour[ev.status] ?? '#64748b') + '60' }}>
+                        {['pending','completed','overdue','waived','failed'].map(st => <option key={st} value={st}>{st}</option>)}
+                      </select>
+                    </td>
                     <td style={{ color: 'var(--text-muted)' }}>{ev.completed_date ?? '—'}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
                       {ev.compliance_requirements?.authority ?? '—'}
@@ -1647,6 +1908,15 @@ function RiskTab() {
     setSaving(false)
   }
 
+  async function resolveIncident(id: string) {
+    setIncidents(prev => prev.filter(i => i.id !== id))
+    await fetch('/api/admin/reporting', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status: 'resolved' }),
+    })
+    load()
+  }
+
   const severityColour: Record<string, string> = { low: '#00b894', medium: '#fdcb6e', high: '#e17055', critical: '#d63031' }
 
   // Sort pools by risk severity
@@ -1717,7 +1987,11 @@ function RiskTab() {
               <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
                 {i.incident_type.replace('_', ' ')} — {new Date(i.occurred_at).toLocaleDateString('en-AU')}
               </div>
-              <div style={{ fontSize: '13px', color: 'var(--text)' }}>{i.description}</div>
+              <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '8px' }}>{i.description}</div>
+              <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: '11px' }}
+                onClick={() => resolveIncident(i.id)}>
+                <Check size={12} /> Resolve
+              </button>
             </div>
           ))}
         </div>
@@ -1773,12 +2047,14 @@ function RiskTab() {
 
 // ── CHEMICALS TAB ─────────────────────────────────────────────────────────────
 function ChemicalsTab() {
-  const [subTab, setSubTab] = useState<'inventory' | 'usage'>('inventory')
+  const [subTab, setSubTab] = useState<'inventory' | 'stock_take' | 'to_order' | 'usage'>('inventory')
   const [chemicals, setChemicals] = useState<any[]>([])
   const [usage, setUsage] = useState<any[]>([])
+  const [orders, setOrders] = useState<any[]>([])
   const [pools, setPools] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [editingChemical, setEditingChemical] = useState<any>(null)
   const [showUsageModal, setShowUsageModal] = useState(false)
   const [editStock, setEditStock] = useState<{ id: string; stock: string } | null>(null)
   const [saving, setSaving] = useState(false)
@@ -1789,27 +2065,58 @@ function ChemicalsTab() {
   const [usageForm, setUsageForm] = useState({
     pool_id: '', chemical_id: '', quantity: '', notes: '', applied_at: new Date().toISOString().slice(0, 16),
   })
+  const [stockTakeCounts, setStockTakeCounts] = useState<Record<string, string>>({})
+  const [savingStockTake, setSavingStockTake] = useState(false)
+  const [showAddOrder, setShowAddOrder] = useState(false)
+  const [orderForm, setOrderForm] = useState({ chemical_id: '', quantity_needed: '', notes: '' })
+  const [showReceived, setShowReceived] = useState(false)
 
   const load = useCallback(() => {
     Promise.all([
       fetch('/api/admin/chemicals').then(r => r.json()),
       fetch('/api/admin/chemicals?section=usage').then(r => r.json()),
+      fetch(`/api/admin/chemical-orders${showReceived ? '?include_received=true' : ''}`).then(r => r.json()),
       fetch('/api/admin/pools').then(r => r.json()),
-    ]).then(([c, u, p]) => {
+    ]).then(([c, u, o, p]) => {
       setChemicals(c.chemicals ?? [])
       setUsage(u.usage ?? [])
+      setOrders(o.orders ?? [])
       setPools(p.pools ?? [])
+      setStockTakeCounts(prev => {
+        const next = { ...prev }
+        for (const chem of c.chemicals ?? []) {
+          if (!(chem.id in next)) next[chem.id] = String(chem.current_stock ?? '0')
+        }
+        return next
+      })
       setLoading(false)
     })
-  }, [])
+  }, [showReceived])
   useEffect(() => { load() }, [load])
+
+  function openAddChemical() {
+    setEditingChemical(null)
+    setForm({ name: '', type: 'sanitiser', unit: 'L', current_stock: '0', reorder_point: '0', supplier: '', safety_data_sheet_url: '' })
+    setShowModal(true)
+  }
+
+  function openEditChemical(c: any) {
+    setEditingChemical(c)
+    setForm({
+      name: c.name ?? '', type: c.type ?? 'sanitiser', unit: c.unit ?? 'L',
+      current_stock: String(c.current_stock ?? '0'), reorder_point: String(c.reorder_point ?? '0'),
+      supplier: c.supplier ?? '', safety_data_sheet_url: c.safety_data_sheet_url ?? '',
+    })
+    setShowModal(true)
+  }
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
     const res = await fetch('/api/admin/chemicals', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
+      method: editingChemical ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingChemical ? { id: editingChemical.id, ...form } : form),
     })
     if (res.ok) { setShowModal(false); load() }
     setSaving(false)
@@ -1835,6 +2142,42 @@ function ChemicalsTab() {
     load()
   }
 
+  async function handleSaveStockTake() {
+    setSavingStockTake(true)
+    const counts = chemicals.map(c => ({ id: c.id, current_stock: Number(stockTakeCounts[c.id] ?? c.current_stock) }))
+    await fetch('/api/admin/chemicals', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'stock_take', counts }),
+    })
+    setSavingStockTake(false)
+    load()
+  }
+
+  async function handleAddOrder(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    const res = await fetch('/api/admin/chemical-orders', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(orderForm),
+    })
+    if (res.ok) { setShowAddOrder(false); setOrderForm({ chemical_id: '', quantity_needed: '', notes: '' }); load() }
+    setSaving(false)
+  }
+
+  async function updateOrderStatus(id: string, status: string) {
+    setOrders(prev => prev.map(o => o.id === id ? { ...o, status } : o))
+    await fetch('/api/admin/chemical-orders', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id, status }),
+    })
+    load()
+  }
+
+  async function deleteOrder(id: string) {
+    setOrders(prev => prev.filter(o => o.id !== id))
+    await fetch('/api/admin/chemical-orders', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+  }
+
   const typeColour: Record<string, string> = {
     sanitiser: '#00b4d8', ph_adjuster: '#fdcb6e', alkalinity: '#00b894',
     calcium: '#a29bfe', algaecide: '#6c5ce7', clarifier: '#81ecec',
@@ -1849,14 +2192,19 @@ function ChemicalsTab() {
           <button className="btn btn-secondary" onClick={() => setShowUsageModal(true)}>
             <FlaskConical size={15} /> Log Usage
           </button>
-          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+          <button className="btn btn-primary" onClick={openAddChemical}>
             <Plus size={16} /> Add Chemical
           </button>
         </div>
       </div>
 
       <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', background: 'var(--surface)', borderRadius: '10px', padding: '4px', width: 'fit-content' }}>
-        {[{ id: 'inventory', label: 'Inventory' }, { id: 'usage', label: 'Usage Log' }].map(t => (
+        {[
+          { id: 'inventory', label: 'Inventory' },
+          { id: 'stock_take', label: 'Stock Take' },
+          { id: 'to_order', label: `To Order${orders.filter(o => o.status === 'pending').length ? ` (${orders.filter(o => o.status === 'pending').length})` : ''}` },
+          { id: 'usage', label: 'Usage Log' },
+        ].map(t => (
           <button key={t.id} onClick={() => setSubTab(t.id as any)} style={{
             padding: '7px 16px', borderRadius: '7px', border: 'none', cursor: 'pointer',
             fontSize: '13px', fontWeight: '600',
@@ -1907,10 +2255,16 @@ function ChemicalsTab() {
                     <td style={{ color: 'var(--text-muted)' }}>{c.reorder_point > 0 ? `${c.reorder_point} ${c.unit}` : '—'}</td>
                     <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{c.supplier ?? '—'}</td>
                     <td>
-                      <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}
-                        onClick={() => setEditStock({ id: c.id, stock: String(c.current_stock) })}>
-                        Update Stock
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn btn-secondary" style={{ padding: '4px 10px', fontSize: '12px' }}
+                          onClick={() => setEditStock({ id: c.id, stock: String(c.current_stock) })}>
+                          Update Stock
+                        </button>
+                        <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}
+                          onClick={() => openEditChemical(c)}>
+                          <Pencil size={13} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -1918,6 +2272,131 @@ function ChemicalsTab() {
             </tbody>
           </table>
         </div>
+      )}
+
+      {subTab === 'stock_take' && (
+        <>
+          <div style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+            Walk the shelf and enter the actual counted stock for each chemical, then save — anything at or below its reorder point is automatically added to the To Order list.
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Chemical</th><th>Type</th><th>System Stock</th><th>Counted Stock</th></tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Loading…</td></tr>
+                ) : chemicals.length === 0 ? (
+                  <tr><td colSpan={4} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No chemicals added yet</td></tr>
+                ) : chemicals.map((c: any) => (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: '600' }}>{c.name}</td>
+                    <td><span style={s.badge(typeColour[c.type] ?? '#64748b')}>{c.type.replace('_', ' ')}</span></td>
+                    <td style={{ color: 'var(--text-muted)' }}>{Number(c.current_stock)} {c.unit}</td>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <input type="number" step="0.1" value={stockTakeCounts[c.id] ?? ''}
+                          onChange={e => setStockTakeCounts(prev => ({ ...prev, [c.id]: e.target.value }))}
+                          style={{ width: '100px', padding: '6px 10px', fontSize: '13px' }} />
+                        <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{c.unit}</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+            <button className="btn btn-primary" disabled={savingStockTake || chemicals.length === 0} onClick={handleSaveStockTake}>
+              {savingStockTake ? 'Saving…' : 'Save Stock Take'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {subTab === 'to_order' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '13px' }}>
+              <input type="checkbox" checked={showReceived} onChange={e => setShowReceived(e.target.checked)} />
+              Show received
+            </label>
+            <button className="btn btn-secondary" onClick={() => setShowAddOrder(true)}>
+              <Plus size={15} /> Add to Order List
+            </button>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Chemical</th><th>Supplier</th><th>Quantity Needed</th><th>Notes</th><th>Added</th><th>Status</th><th></th></tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Loading…</td></tr>
+                ) : orders.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Nothing on the order list</td></tr>
+                ) : orders.map((o: any) => (
+                  <tr key={o.id}>
+                    <td style={{ fontWeight: '600' }}>
+                      {o.chemicals?.name ?? '—'}
+                      <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                        {Number(o.chemicals?.current_stock ?? 0)} / {Number(o.chemicals?.reorder_point ?? 0)} {o.chemicals?.unit}
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{o.chemicals?.supplier ?? '—'}</td>
+                    <td style={{ color: 'var(--text-muted)' }}>{o.quantity_needed ? `${Number(o.quantity_needed)} ${o.chemicals?.unit}` : '—'}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{o.notes ?? '—'}</td>
+                    <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{new Date(o.added_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}</td>
+                    <td>
+                      <select value={o.status} onChange={e => updateOrderStatus(o.id, e.target.value)}
+                        style={{ width: 'auto', padding: '4px 8px', fontSize: '12px' }}>
+                        <option value="pending">Pending</option>
+                        <option value="ordered">Ordered</option>
+                        <option value="received">Received</option>
+                      </select>
+                    </td>
+                    <td>
+                      <button className="btn btn-secondary" style={{ padding: '3px 8px', fontSize: '11px', color: 'var(--red)' }}
+                        onClick={() => deleteOrder(o.id)}>
+                        Remove
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {showAddOrder && (
+            <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowAddOrder(false) }}>
+              <div className="modal" style={{ maxWidth: '440px' }}>
+                <div className="modal-title">Add to Order List</div>
+                <form onSubmit={handleAddOrder}>
+                  <div style={s.formGroup}>
+                    <label>Chemical *</label>
+                    <select required value={orderForm.chemical_id} onChange={e => setOrderForm(f => ({ ...f, chemical_id: e.target.value }))}>
+                      <option value="">— Select Chemical —</option>
+                      {chemicals.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={s.formGroup}>
+                    <label>Quantity Needed</label>
+                    <input type="number" step="0.1" value={orderForm.quantity_needed} onChange={e => setOrderForm(f => ({ ...f, quantity_needed: e.target.value }))} />
+                  </div>
+                  <div style={s.formGroup}>
+                    <label>Notes</label>
+                    <textarea rows={2} value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button type="button" className="btn btn-secondary" onClick={() => setShowAddOrder(false)}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add to List'}</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {subTab === 'usage' && (
@@ -1953,7 +2432,7 @@ function ChemicalsTab() {
       {showModal && (
         <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }}>
           <div className="modal" style={{ maxWidth: '560px' }}>
-            <div className="modal-title">Add Chemical</div>
+            <div className="modal-title">{editingChemical ? 'Edit Chemical' : 'Add Chemical'}</div>
             <form onSubmit={handleAdd}>
               <div style={s.formGrid}>
                 <div style={s.formGroup}>
@@ -1991,7 +2470,7 @@ function ChemicalsTab() {
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Add Chemical'}</button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingChemical ? 'Save Changes' : 'Add Chemical'}</button>
               </div>
             </form>
           </div>
@@ -2521,6 +3000,7 @@ function RemoteSitesTab() {
   })
   const [saving, setSaving] = useState(false)
   const [key, setKey] = useState<string | null>(null)
+  const [editingSensor, setEditingSensor] = useState<any>(null)
 
   const load = useCallback(() => {
     Promise.all([
@@ -2546,11 +3026,41 @@ function RemoteSitesTab() {
     setSaving(false)
   }
 
+  function openEditSensor(sensor: any) {
+    setEditingSensor(sensor)
+    setForm({
+      pool_id: sensor.pool_id ?? '', device_type: sensor.device_type ?? '',
+      manufacturer: sensor.manufacturer ?? '', serial_number: sensor.serial_number ?? '', notes: sensor.notes ?? '',
+    })
+    setShowModal(true)
+  }
+
+  async function handleSaveSensor(e: React.FormEvent) {
+    e.preventDefault()
+    setSaving(true)
+    await fetch('/api/iot/sensors', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: editingSensor.id, ...form }),
+    })
+    setShowModal(false)
+    setEditingSensor(null)
+    load()
+    setSaving(false)
+  }
+
+  async function toggleSensorActive(sensor: any) {
+    await fetch('/api/iot/sensors', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: sensor.id, is_active: !sensor.is_active }),
+    })
+    load()
+  }
+
   return (
     <>
       <div style={s.header}>
         <div style={s.pageTitle}>Remote Sites & IoT Sensors</div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={() => { setEditingSensor(null); setForm({ pool_id: '', device_type: '', manufacturer: '', serial_number: '', notes: '' }); setShowModal(true) }}>
           <Plus size={16} /> Register Sensor
         </button>
       </div>
@@ -2596,9 +3106,17 @@ function RemoteSitesTab() {
                     {lastSeen ? lastSeen.toLocaleString('en-AU', { timeZone: 'Australia/Sydney' }) : 'Never'}
                   </td>
                   <td>
-                    <span style={s.badge(sensor.is_active ? '#00b894' : '#64748b')}>
-                      {sensor.is_active ? 'Active' : 'Inactive'}
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button onClick={() => toggleSensorActive(sensor)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                        <span style={s.badge(sensor.is_active ? '#00b894' : '#64748b')}>
+                          {sensor.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      </button>
+                      <button className="btn btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}
+                        onClick={() => openEditSensor(sensor)}>
+                        <Pencil size={12} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               )
@@ -2608,7 +3126,7 @@ function RemoteSitesTab() {
       </div>
 
       {showModal && (
-        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); setKey(null) } }}>
+        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); setKey(null); setEditingSensor(null) } }}>
           <div className="modal">
             {key ? (
               <>
@@ -2624,8 +3142,8 @@ function RemoteSitesTab() {
               </>
             ) : (
               <>
-                <div className="modal-title">Register IoT Sensor</div>
-                <form onSubmit={handleRegister}>
+                <div className="modal-title">{editingSensor ? 'Edit Sensor' : 'Register IoT Sensor'}</div>
+                <form onSubmit={editingSensor ? handleSaveSensor : handleRegister}>
                   <div style={s.formGroup}>
                     <label>Pool *</label>
                     <select required value={form.pool_id} onChange={e => setForm(f => ({ ...f, pool_id: e.target.value }))}>
@@ -2652,12 +3170,178 @@ function RemoteSitesTab() {
                     <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
                   </div>
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                    <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : 'Register'}</button>
+                    <button type="button" className="btn btn-secondary" onClick={() => { setShowModal(false); setEditingSensor(null) }}>Cancel</button>
+                    <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingSensor ? 'Save Changes' : 'Register'}</button>
                   </div>
                 </form>
               </>
             )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
+// ── ERROR LOG TAB ──────────────────────────────────────────────────────────────
+function FeedbackTab() {
+  const [feedback, setFeedback] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [filterStatus, setFilterStatus] = useState('')
+  const [selected, setSelected] = useState<any>(null)
+
+  const load = useCallback(() => {
+    fetch('/api/feedback').then(r => r.json()).then(d => {
+      setFeedback(d.feedback ?? [])
+      setLoading(false)
+    })
+  }, [])
+  useEffect(() => { load() }, [load])
+
+  async function updateStatus(id: string, status: string) {
+    setFeedback(prev => prev.map(f => f.id === id ? { ...f, status } : f))
+    if (selected?.id === id) setSelected((s: any) => s && { ...s, status })
+    await fetch(`/api/feedback/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+  }
+
+  const typeColour: Record<string, string> = { bug: '#d63031', feature: '#00b4d8', improvement: '#fdcb6e' }
+  const priorityColour: Record<string, string> = { low: '#64748b', medium: '#fdcb6e', high: '#d63031' }
+  const statusColour: Record<string, string> = { pending: '#fdcb6e', in_progress: '#00b4d8', done: '#00b894' }
+
+  const visible = filterStatus ? feedback.filter(f => f.status === filterStatus) : feedback
+  const pendingCount = feedback.filter(f => f.status === 'pending').length
+
+  return (
+    <>
+      <div style={s.header}>
+        <div style={s.pageTitle}>Error Log</div>
+      </div>
+
+      <div style={{ ...s.grid3, gridTemplateColumns: 'repeat(3,1fr)' }}>
+        <div className="stat-tile">
+          <div className="stat-value" style={{ color: '#fdcb6e' }}>{loading ? '—' : pendingCount}</div>
+          <div className="stat-label">Pending</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value" style={{ color: '#00b4d8' }}>{loading ? '—' : feedback.filter(f => f.status === 'in_progress').length}</div>
+          <div className="stat-label">In Progress</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-value" style={{ color: '#00b894' }}>{loading ? '—' : feedback.filter(f => f.status === 'done').length}</div>
+          <div className="stat-label">Done</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} style={{ width: '200px' }}>
+          <option value="">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="in_progress">In Progress</option>
+          <option value="done">Done</option>
+        </select>
+      </div>
+
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Type</th><th>Title</th><th>Priority</th><th>Reported By</th><th>Page</th><th>Date</th><th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>Loading…</td></tr>
+            ) : visible.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-muted)' }}>No reports — nice and quiet.</td></tr>
+            ) : visible.map((f: any) => (
+              <tr key={f.id} style={{ cursor: 'pointer' }} onClick={() => setSelected(f)}>
+                <td><span style={s.badge(typeColour[f.type] ?? '#64748b')}>{f.type}</span></td>
+                <td style={{ fontWeight: '600', maxWidth: '280px' }}>{f.title}</td>
+                <td><span style={s.badge(priorityColour[f.priority] ?? '#64748b')}>{f.priority}</span></td>
+                <td style={{ color: 'var(--text-muted)' }}>{f.submitted_by ?? '—'}</td>
+                <td style={{ color: 'var(--text-muted)', fontSize: '12px' }}>{f.page_url ?? '—'}</td>
+                <td style={{ color: 'var(--text-muted)', fontSize: '12px', whiteSpace: 'nowrap' }}>
+                  {new Date(f.created_at).toLocaleDateString('en-AU', { timeZone: 'Australia/Sydney' })}
+                </td>
+                <td onClick={e => e.stopPropagation()}>
+                  <select value={f.status} onChange={e => updateStatus(f.id, e.target.value)}
+                    style={{ width: 'auto', padding: '4px 8px', fontSize: '12px', color: statusColour[f.status], borderColor: statusColour[f.status] + '60' }}>
+                    <option value="pending">Pending</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="done">Done</option>
+                  </select>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {selected && (
+        <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) setSelected(null) }}>
+          <div className="modal" style={{ maxWidth: '640px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+              <div>
+                <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                  <span style={s.badge(typeColour[selected.type] ?? '#64748b')}>{selected.type}</span>
+                  <span style={s.badge(priorityColour[selected.priority] ?? '#64748b')}>{selected.priority}</span>
+                </div>
+                <div className="modal-title" style={{ margin: 0 }}>{selected.title}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '12px', marginTop: '6px' }}>
+                  {selected.submitted_by ?? 'Unknown'} ·{' '}
+                  {new Date(selected.created_at).toLocaleString('en-AU', { timeZone: 'Australia/Sydney', dateStyle: 'medium', timeStyle: 'short' })}
+                  {selected.page_url && <> · {selected.page_url}</>}
+                </div>
+              </div>
+              <select value={selected.status} onChange={e => updateStatus(selected.id, e.target.value)}
+                style={{ width: 'auto', padding: '6px 10px', fontSize: '12px', color: statusColour[selected.status], borderColor: statusColour[selected.status] + '60' }}>
+                <option value="pending">Pending</option>
+                <option value="in_progress">In Progress</option>
+                <option value="done">Done</option>
+              </select>
+            </div>
+
+            {selected.description && (
+              <div style={{ background: 'var(--surface-2)', borderRadius: '8px', padding: '14px', marginBottom: '16px', fontSize: '13px', color: 'var(--text)' }}>
+                {selected.description}
+              </div>
+            )}
+
+            {selected.screenshot_url && (
+              <a href={selected.screenshot_url} target="_blank" rel="noreferrer" style={{ display: 'block', marginBottom: '16px' }}>
+                <img src={selected.screenshot_url} alt="Screenshot" style={{ maxWidth: '100%', borderRadius: '8px', border: '1px solid var(--border)' }} />
+              </a>
+            )}
+
+            {(selected.ai_diagnosis || selected.ai_workaround || selected.ai_fix_hint) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {selected.ai_diagnosis && (
+                  <div style={{ background: '#00b4d818', border: '1px solid #00b4d840', borderRadius: '8px', padding: '14px' }}>
+                    <div style={{ color: '#00b4d8', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>AI: Likely Root Cause</div>
+                    <div style={{ color: 'var(--text)', fontSize: '13px' }}>{selected.ai_diagnosis}</div>
+                  </div>
+                )}
+                {selected.ai_workaround && (
+                  <div style={{ background: '#00b89418', border: '1px solid #00b89440', borderRadius: '8px', padding: '14px' }}>
+                    <div style={{ color: '#00b894', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>AI: Workaround</div>
+                    <div style={{ color: 'var(--text)', fontSize: '13px' }}>{selected.ai_workaround}</div>
+                  </div>
+                )}
+                {selected.ai_fix_hint && (
+                  <div style={{ background: '#fdcb6e18', border: '1px solid #fdcb6e40', borderRadius: '8px', padding: '14px' }}>
+                    <div style={{ color: '#fdcb6e', fontWeight: '700', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>AI: Suggested Fix Approach</div>
+                    <div style={{ color: 'var(--text)', fontSize: '13px' }}>{selected.ai_fix_hint}</div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
+              <button className="btn btn-secondary" onClick={() => setSelected(null)}>Close</button>
+            </div>
           </div>
         </div>
       )}
@@ -2706,6 +3390,7 @@ export default function AdminPage() {
     closures: 'Pool Closures',
     risk: 'Risk Management',
     'remote-sites': 'Remote Sites & IoT',
+    errors: 'Error Log',
   }
 
   return (
@@ -2759,6 +3444,7 @@ export default function AdminPage() {
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
               {new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Australia/Sydney' })}
             </div>
+            <ReportIssueButton iconOnly={false} />
             <div style={{ position: 'relative' }}>
               <button onClick={() => setShowNotifs(v => !v)} style={{
                 background: 'none', border: 'none', cursor: 'pointer', padding: '6px',
@@ -2827,6 +3513,7 @@ export default function AdminPage() {
         {tab === 'closures'      && <ClosuresTab />}
         {tab === 'risk'          && <RiskTab />}
         {tab === 'remote-sites'  && <RemoteSitesTab />}
+        {tab === 'errors'        && <FeedbackTab />}
       </main>
     </div>
   )

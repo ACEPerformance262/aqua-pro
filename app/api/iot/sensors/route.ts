@@ -43,3 +43,27 @@ export async function POST(req: NextRequest) {
   // In production: hash the sensor_key in the DB and compare on ingest
   return NextResponse.json({ sensor: data, sensor_key: sensorKey })
 }
+
+export async function PATCH(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, ...rest } = body
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const updates: Record<string, unknown> = {}
+  for (const key of ['pool_id', 'device_type', 'manufacturer', 'serial_number', 'notes', 'is_active']) {
+    if (key in rest) updates[key] = key === 'is_active' ? rest[key] : (rest[key] || null)
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('iot_sensors')
+    .update(updates)
+    .eq('id', id)
+    .select('*, pools(name, site_code)')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ sensor: data })
+}

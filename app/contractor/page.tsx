@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Wrench, MapPin, CheckCircle, Clock, LogOut, ChevronRight } from 'lucide-react'
+import ReportIssueButton from '@/components/ReportIssueButton'
 
 export default function ContractorPage() {
   const [user, setUser] = useState<any>(null)
@@ -44,9 +45,12 @@ export default function ContractorPage() {
             {user && <div style={{ fontSize: '11px', color: '#64748b' }}>Contractor · {user.firstName} {user.lastName}</div>}
           </div>
         </div>
-        <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
-          <LogOut size={18} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <ReportIssueButton />
+          <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer' }}>
+            <LogOut size={18} />
+          </button>
+        </div>
       </div>
 
       <div style={{ padding: '20px' }}>

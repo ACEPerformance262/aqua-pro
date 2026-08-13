@@ -74,3 +74,43 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ pool: data })
 }
+
+export async function PATCH(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, ...rest } = body
+  if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const updates = {
+    name: rest.name,
+    site_code: rest.site_code,
+    address: rest.address,
+    suburb: rest.suburb || null,
+    state: rest.state || null,
+    postcode: rest.postcode || null,
+    pool_type: rest.pool_type,
+    sanitiser_type: rest.sanitiser_type,
+    volume_litres: rest.volume_litres ? Number(rest.volume_litres) : null,
+    surface_area_m2: rest.surface_area_m2 ? Number(rest.surface_area_m2) : null,
+    max_bather_load: rest.max_bather_load ? Number(rest.max_bather_load) : null,
+    owner_name: rest.owner_name || null,
+    owner_email: rest.owner_email || null,
+    owner_phone: rest.owner_phone || null,
+    is_commercial: rest.is_commercial ?? false,
+    health_licence_number: rest.health_licence_number || null,
+    licence_expiry: rest.licence_expiry || null,
+    notes: rest.notes || null,
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('pools')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ pool: data })
+}

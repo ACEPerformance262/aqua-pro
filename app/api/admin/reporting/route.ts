@@ -90,3 +90,26 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ error: 'Unknown type' }, { status: 400 })
 }
+
+export async function PATCH(req: NextRequest) {
+  const user = await getSession()
+  if (!user || !['admin', 'manager'].includes(user.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const body = await req.json()
+  const { id, ...updates } = body
+
+  if (['resolved', 'closed'].includes(updates.status) && !updates.resolved_at) {
+    updates.resolved_at = new Date().toISOString()
+    updates.resolved_by = user.id
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('incidents')
+    .update(updates)
+    .eq('id', id)
+    .select('*, pools(name)')
+    .single()
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ incident: data })
+}

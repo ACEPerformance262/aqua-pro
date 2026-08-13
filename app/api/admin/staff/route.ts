@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createHash } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
-
-function hashPassword(pw: string): string {
-  return createHash('sha256').update(pw + process.env.SESSION_SECRET).digest('hex')
-}
+import { hashPassword } from '@/lib/password'
 
 export async function GET() {
   const user = await getSession()
@@ -13,7 +9,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from('staff')
-    .select('id, email, first_name, last_name, role, phone, is_active, created_at')
+    .select('id, email, first_name, last_name, role, phone, is_active, created_at, last_login_at')
     .order('last_name')
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -29,7 +25,7 @@ export async function POST(req: NextRequest) {
     .from('staff')
     .insert({
       email: body.email.toLowerCase().trim(),
-      password_hash: hashPassword(body.password),
+      password_hash: await hashPassword(body.password),
       first_name: body.first_name,
       last_name: body.last_name,
       role: body.role,
@@ -49,7 +45,7 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const { id, ...updates } = body
   if (updates.password) {
-    updates.password_hash = hashPassword(updates.password)
+    updates.password_hash = await hashPassword(updates.password)
     delete updates.password
   }
 
