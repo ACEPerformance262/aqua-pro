@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { classifyRisk } from '@/lib/water-chemistry'
+import { hashSensorKey } from '@/lib/sensor-key'
 import type { PoolType, SanitiserType, WaterTestValues } from '@/lib/water-chemistry'
 
 // IoT sensor ingest endpoint — no user auth required, uses sensor_key
@@ -21,11 +22,11 @@ export async function POST(req: NextRequest) {
   const { sensor_key, ...readings } = body
   if (!sensor_key) return NextResponse.json({ error: 'sensor_key required' }, { status: 400 })
 
-  // Validate sensor
+  // Validate sensor — sensor_key is stored hashed, so hash the incoming raw key before comparing
   const { data: sensor } = await supabaseAdmin
     .from('iot_sensors')
     .select('id, pool_id, is_active, pools(pool_type, sanitiser_type, volume_litres, name)')
-    .eq('sensor_key', sensor_key)
+    .eq('sensor_key', hashSensorKey(sensor_key))
     .single()
 
   if (!sensor || !sensor.is_active) return NextResponse.json({ error: 'Invalid or inactive sensor' }, { status: 401 })

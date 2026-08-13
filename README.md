@@ -17,12 +17,18 @@ A full-stack web application for managing commercial pool maintenance operations
 
 ### 1. Database
 
-Create a new Supabase project, then run these two SQL files in order via the Supabase SQL editor:
+Create a new Supabase project, then run these SQL files in order via the Supabase SQL editor:
 
 ```
-supabase-schema.sql           ← core schema + seeded categories & water test targets
-add-checklists-migration.sql  ← shift checklists + sessions tables
+supabase-schema.sql                    ← core schema + seeded categories & water test targets
+add-checklists-migration.sql           ← shift checklists + sessions tables
+add-plant-logs-migration.sql           ← plant room log
+add-staff-feedback-migration.sql       ← Error Log / staff feedback system
+add-chemical-orders-migration.sql      ← chemical stock take + reorder queue
+add-staff-last-login-migration.sql     ← staff.last_login_at tracking
 ```
+
+After running each migration, run `NOTIFY pgrst, 'reload schema';` in the SQL editor so PostgREST picks up the new tables/columns immediately instead of erroring on the next request.
 
 ### 2. Environment Variables
 
@@ -35,8 +41,8 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 # Email (Gmail App Password — not your regular password)
-GMAIL_USER=your@gmail.com
-GMAIL_APP_PASSWORD=xxxx xxxx xxxx xxxx
+EMAIL_USER=your@gmail.com
+EMAIL_PASS=xxxx xxxx xxxx xxxx
 
 # AI
 ANTHROPIC_API_KEY=sk-ant-...
@@ -49,6 +55,11 @@ CRON_SECRET=any-long-random-string
 
 # App URL (used in email links)
 NEXT_PUBLIC_APP_URL=https://your-domain.vercel.app
+
+# Twilio (SMS — wired but optional; leave blank if not using SMS yet)
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_FROM_NUMBER=
 ```
 
 ### 3. Seed First Admin User
@@ -97,7 +108,7 @@ Schedule: 0 7 * * *   (7am daily)
 | URL | Role | Access |
 |-----|------|--------|
 | `/login` | All | Login page |
-| `/admin` | admin, manager | Full dashboard — 11 tabs |
+| `/admin` | admin, manager | Full dashboard — 12 tabs |
 | `/technician` | technician | Today's jobs, water testing, checklists |
 | `/pool-manager` | pool_manager | Read-only water status + compliance |
 | `/contractor` | contractor | Assigned jobs + sign-off |
@@ -112,14 +123,15 @@ Schedule: 0 7 * * *   (7am daily)
 | Overview | KPI tiles + recent water tests |
 | Pools | Pool register CRUD |
 | Water Testing | Log tests, AI chemistry advice, view history |
-| Staff & Scheduling | Shifts · Staff · Service Routes · Unavailability |
-| Shift Checklists | Review submitted checklists, flag drill-down |
+| Staff & Shifts | Shifts · Staff (incl. last login) · Service Routes · Unavailability |
+| Checklists | Review submitted shift checklists, flag drill-down |
 | Asset Register | Equipment CRUD + service log history |
 | Compliance | Events calendar · Requirements library |
-| Chemicals | Chemical inventory + usage log |
+| Chemicals | Inventory · Usage log · Stock Take · To Order queue |
 | Pool Closures | Close/reopen pools, closure history |
-| Risk | Pool risk status, incident reporting |
-| Remote Sites & IoT | Register sensors, view ingest endpoint |
+| Risk | Pool risk status, incident reporting (open + resolve) |
+| Remote Sites | Register/edit/deactivate IoT sensors, view ingest endpoint |
+| Error Log | Staff-submitted bug/feature reports with AI-assisted triage |
 
 ---
 
@@ -170,14 +182,24 @@ The technician portal uses port 3000 by default. To match the sales page referen
 
 ## Handoff Checklist
 
-- [ ] Supabase project created and both SQL files run
-- [ ] `.env.local` values filled and added to Vercel
-- [ ] First admin user seeded via SQL
-- [ ] Deployed to Vercel
-- [ ] Daily crons scheduled
-- [ ] Client staff added via Admin → Staff & Scheduling → Staff
+- [ ] Supabase project created and all 6 SQL files run, in order, `NOTIFY pgrst, 'reload schema';` run after
+- [ ] `.env.local` values filled and added to Vercel (note: `EMAIL_USER`/`EMAIL_PASS`, not `GMAIL_USER`/`GMAIL_APP_PASSWORD`)
+- [ ] First admin user seeded via SQL (bcrypt hash, not the legacy SHA-256 scheme — see Auth section below)
+- [ ] Deployed to Vercel **via git push**, not a bare `vercel --prod` from an uncommitted working tree — confirm `git status` is clean before every deploy
+- [ ] `vercel.json` cron config present and Vercel Cron Jobs showing as active in the project dashboard
+- [ ] Client staff added via Admin → Staff & Shifts → Staff
 - [ ] Pools added via Admin → Pools
 - [ ] Compliance requirements set up via Admin → Compliance → Requirements
 - [ ] Chemicals added via Admin → Chemicals
 - [ ] IoT sensors registered if applicable (Admin → Remote Sites)
 - [ ] Sales PDF generated from `/sales` (if needed)
+- [ ] Confirm RLS is enabled on every table in the Supabase dashboard (Database → Tables → each table's RLS toggle) before any real client data goes in
+
+## Auth Notes
+
+- Passwords are hashed with bcrypt (12 rounds). A handful of very early accounts may still carry
+  a legacy SHA-256 hash — `verifyPassword()` in `lib/password.ts` detects and transparently
+  upgrades these to bcrypt the next time that user logs in. No forced reset needed.
+- The session cookie (`aquapro_session`) is HMAC-signed using `SESSION_SECRET` — treat that value
+  as sensitive as a password. Rotating it invalidates every active session (forces re-login for
+  all staff), which is the correct way to kill all sessions at once if ever needed.

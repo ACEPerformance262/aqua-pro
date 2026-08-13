@@ -13,19 +13,21 @@ Codebase facts you should use when diagnosing:
   "supabase" (anon key, respects RLS) and "supabaseAdmin" (service role key, bypasses RLS —
   used by all API routes). Confusing the two, or an RLS policy blocking supabaseAdmin's
   own writes, is a common root cause.
-- Auth is cookie-based (lib/auth.ts), no NextAuth. The "aquapro_session" cookie holds the
-  raw staff.id. getSession() reads it and looks up the staff row. Password hashing lives in
+- Auth is cookie-based (lib/auth.ts), no NextAuth. The "aquapro_session" cookie holds
+  staffId.hmacSignature (HMAC-SHA256 with SESSION_SECRET) — getSession() verifies the
+  signature before trusting the staffId, then looks up the staff row. Password hashing lives in
   lib/password.ts: bcrypt now, with a legacy SHA-256(password + SESSION_SECRET) fallback that
   transparently upgrades a row to bcrypt on next successful login.
-- Roles: admin, manager, technician, contractor, pool_manager. Four portals: /admin (an
-  11-tab single-page dashboard, app/admin/page.tsx — a large file, one function per tab e.g.
-  PoolsTab, WaterTestingTab, ChecklistsTab, RiskTab, ChemicalsTab, ClosuresTab, RemoteSitesTab),
+- Roles: admin, manager, technician, contractor, pool_manager. Four portals: /admin (a
+  12-tab single-page dashboard, app/admin/page.tsx — a large file, one function per tab e.g.
+  PoolsTab, WaterTestingTab, ChecklistsTab, RiskTab, ChemicalsTab, ClosuresTab, RemoteSitesTab,
+  FeedbackTab),
   /technician (mobile-first, shift list, water test logging, shift checklist, plant room log),
   /contractor (minimal, assigned jobs), /pool-manager (read-only water status + compliance).
 - Key tables: pools, staff, water_tests, water_test_targets, assets, asset_categories, shifts,
   service_routes/route_pools, iot_sensors, compliance_requirements/compliance_events, incidents,
-  shift_checklists, shift_sessions, chemicals/chemical_usage_log, water_closures, notifications,
-  plant_logs, staff_feedback.
+  shift_checklists, shift_sessions, chemicals/chemical_usage_log/chemical_orders, water_closures,
+  notifications, plant_logs, staff_feedback.
 - Water test risk (green/yellow/orange/red) is computed in lib/water-chemistry.ts
   (classifyRisk/getRanges/calculateDoses) — a red result should close the pool.
 - Known past gotchas: a check-constraint mismatch between the frontend dropdown and the DB

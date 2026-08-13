@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomBytes } from 'crypto'
 import { supabaseAdmin } from '@/lib/supabase'
 import { getSession } from '@/lib/auth'
+import { hashSensorKey } from '@/lib/sensor-key'
 
 export async function GET() {
   const user = await getSession()
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
     .from('iot_sensors')
     .insert({
       pool_id: body.pool_id,
-      sensor_key: sensorKey,
+      sensor_key: hashSensorKey(sensorKey),
       device_type: body.device_type || null,
       manufacturer: body.manufacturer || null,
       serial_number: body.serial_number || null,
@@ -39,8 +40,7 @@ export async function POST(req: NextRequest) {
     .single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  // Return the raw key once — it's stored hashed ideally, but for simplicity stored as-is
-  // In production: hash the sensor_key in the DB and compare on ingest
+  // Return the raw key once — only its hash is stored, so this is the only time it's ever visible
   return NextResponse.json({ sensor: data, sensor_key: sensorKey })
 }
 
