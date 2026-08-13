@@ -8,9 +8,13 @@ export default function ContractorPage() {
   const [user, setUser] = useState<any>(null)
   const [shifts, setShifts] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [selected, setSelected] = useState<any>(null)
+  const [completeError, setCompleteError] = useState<string | null>(null)
 
-  useEffect(() => {
+  function loadShifts() {
+    setLoading(true)
+    setLoadError(false)
     Promise.all([
       fetch('/api/auth/me').then(r => r.json()),
       fetch('/api/technician/today').then(r => r.json()),
@@ -18,16 +22,27 @@ export default function ContractorPage() {
       setUser(u.user)
       setShifts(s.shifts ?? [])
       setLoading(false)
+    }).catch(() => {
+      setLoadError(true)
+      setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(() => { loadShifts() }, [])
 
   async function handleComplete(shiftId: string, notes: string) {
-    await fetch(`/api/technician/shift/${shiftId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'completed', actual_end: new Date().toISOString(), notes }),
-    })
-    setShifts(prev => prev.map(s => s.id === shiftId ? { ...s, status: 'completed' } : s))
-    setSelected(null)
+    setCompleteError(null)
+    try {
+      const res = await fetch(`/api/technician/shift/${shiftId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed', actual_end: new Date().toISOString(), notes }),
+      })
+      if (!res.ok) { setCompleteError('Could not mark this job complete — try again.'); return }
+      setShifts(prev => prev.map(s => s.id === shiftId ? { ...s, status: 'completed' } : s))
+      setSelected(null)
+    } catch {
+      setCompleteError('No connection — could not mark this job complete. Try again when back online.')
+    }
   }
 
   async function handleLogout() {
@@ -61,6 +76,11 @@ export default function ContractorPage() {
 
         {loading ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>Loading…</div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>
+            <div style={{ marginBottom: '16px' }}>Couldn&apos;t load today&apos;s assignments — check your connection.</div>
+            <button className="btn btn-primary" onClick={loadShifts} style={{ display: 'inline-flex' }}>Retry</button>
+          </div>
         ) : shifts.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>
             <Wrench size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
@@ -95,16 +115,22 @@ export default function ContractorPage() {
       </div>
 
       {selected && (
-        <ContractorSheetPanel shift={selected} onClose={() => setSelected(null)} onComplete={handleComplete} />
+        <ContractorSheetPanel
+          shift={selected}
+          onClose={() => { setSelected(null); setCompleteError(null) }}
+          onComplete={handleComplete}
+          completeError={completeError}
+        />
       )}
     </div>
   )
 }
 
-function ContractorSheetPanel({ shift, onClose, onComplete }: {
+function ContractorSheetPanel({ shift, onClose, onComplete, completeError }: {
   shift: any
   onClose: () => void
   onComplete: (id: string, notes: string) => void
+  completeError: string | null
 }) {
   const [notes, setNotes] = useState('')
 
@@ -113,7 +139,7 @@ function ContractorSheetPanel({ shift, onClose, onComplete }: {
       onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ background: '#0d1829', borderTop: '1px solid #1a2d45', borderRadius: '20px 20px 0 0', padding: '24px', width: '100%', maxWidth: '480px', margin: '0 auto' }}>
         <div style={{ fontWeight: '700', fontSize: '18px', color: '#e2e8f0', marginBottom: '4px' }}>{shift.pools?.name ?? 'Assignment'}</div>
-        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>{shift.shift_type.replace('_', ' ')}</div>
+        <div style={{ fontSize: '13px', color: '#64748b', marginBottom: '20px' }}>{(shift.shift_type ?? '').replace('_', ' ') || '—'}</div>
         {shift.notes && (
           <div style={{ background: '#121f35', borderRadius: '8px', padding: '12px', marginBottom: '16px', fontSize: '13px', color: '#94a3b8', border: '1px solid #1a2d45' }}>
             {shift.notes}
@@ -132,6 +158,9 @@ function ContractorSheetPanel({ shift, onClose, onComplete }: {
               onClick={() => onComplete(shift.id, notes)}>
               <CheckCircle size={16} /> Mark Complete
             </button>
+          )}
+          {completeError && (
+            <div style={{ color: '#d63031', fontSize: '12px', textAlign: 'center' }}>{completeError}</div>
           )}
           <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }} onClick={onClose}>Close</button>
         </div>

@@ -22,8 +22,19 @@ export default function TechnicianPage() {
   })
   const [saving, setSaving] = useState(false)
   const [lastTest, setLastTest] = useState<any>(null)
+  const [loadError, setLoadError] = useState(false)
+  const [testError, setTestError] = useState<string | null>(null)
+  const [completeError, setCompleteError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const blankTestForm = {
+    free_chlorine: '', combined_chlorine: '', ph: '', total_alkalinity: '',
+    calcium_hardness: '', cyanuric_acid: '', salt_level: '', phosphates: '',
+    temperature_c: '', turbidity: '', notes: '',
+  }
+
+  function loadShifts() {
+    setLoading(true)
+    setLoadError(false)
     Promise.all([
       fetch('/api/auth/me').then(r => r.json()),
       fetch('/api/technician/today').then(r => r.json()),
@@ -31,32 +42,48 @@ export default function TechnicianPage() {
       setUser(u.user)
       setShifts(s.shifts ?? [])
       setLoading(false)
+    }).catch(() => {
+      setLoadError(true)
+      setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(() => { loadShifts() }, [])
 
   async function loadLastTest(poolId: string) {
-    const res = await fetch(`/api/admin/water-tests?pool_id=${poolId}&limit=1`)
-    const data = await res.json()
-    setLastTest(data.tests?.[0] ?? null)
+    try {
+      const res = await fetch(`/api/admin/water-tests?pool_id=${poolId}&limit=1`)
+      if (!res.ok) return
+      const data = await res.json()
+      setLastTest(data.tests?.[0] ?? null)
+    } catch { /* last-test panel just won't show — non-critical */ }
   }
 
   async function handleSelectShift(shift: any) {
     setSelected(shift)
+    setLastTest(null)
     if (shift.pool_id) loadLastTest(shift.pool_id)
   }
 
   async function handleCompleteShift(shiftId: string) {
-    await fetch(`/api/technician/shift/${shiftId}`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'completed', actual_end: new Date().toISOString() }),
-    })
-    setShifts(prev => prev.map(s => s.id === shiftId ? { ...s, status: 'completed' } : s))
-    setSelected(null)
+    setCompleteError(null)
+    try {
+      const res = await fetch(`/api/technician/shift/${shiftId}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'completed', actual_end: new Date().toISOString() }),
+      })
+      if (!res.ok) { setCompleteError('Could not mark this shift complete — try again.'); return }
+      setShifts(prev => prev.map(s => s.id === shiftId ? { ...s, status: 'completed' } : s))
+      setSelected(null)
+    } catch {
+      setCompleteError('No connection — could not mark this shift complete. Try again when back online.')
+    }
   }
 
   async function handleLogTest(e: React.FormEvent) {
     e.preventDefault()
     setSaving(true)
+    setTestError(null)
     const payload: Record<string, any> = {
       pool_id: selected.pool_id,
       tested_at: new Date().toISOString(),
@@ -66,16 +93,24 @@ export default function TechnicianPage() {
       'cyanuric_acid','salt_level','phosphates','temperature_c','turbidity']
     numFields.forEach(f => { if (payload[f] === '') payload[f] = null })
 
-    const res = await fetch('/api/admin/water-tests', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setShowTestForm(false)
-      setLastTest(data.test)
+    try {
+      const res = await fetch('/api/admin/water-tests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setShowTestForm(false)
+        setLastTest(data.test)
+        setTestForm(blankTestForm)
+      } else {
+        setTestError(data.error ?? 'Could not save this test — try again.')
+      }
+    } catch {
+      setTestError('No connection — this test was not saved. Try again when back online.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
   }
 
   async function handleLogout() {
@@ -130,6 +165,11 @@ export default function TechnicianPage() {
 
         {loading ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>Loading shifts…</div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>
+            <div style={{ marginBottom: '16px' }}>Couldn&apos;t load today&apos;s jobs — check your connection.</div>
+            <button className="btn btn-primary" onClick={loadShifts} style={{ display: 'inline-flex' }}>Retry</button>
+          </div>
         ) : shifts.length === 0 ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>
             <Clock size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
@@ -158,7 +198,7 @@ export default function TechnicianPage() {
                     color: shiftTypeColour[shift.shift_type],
                     border: `1px solid ${shiftTypeColour[shift.shift_type]}40`,
                   }}>
-                    {shift.shift_type.replace('_', ' ')}
+                    {(shift.shift_type ?? '').replace('_', ' ') || '—'}
                   </span>
                   <span style={{ fontSize: '11px', color: '#64748b' }}>
                     {new Date(shift.scheduled_start).toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', timeZone: 'Australia/Sydney' })}
@@ -241,8 +281,11 @@ export default function TechnicianPage() {
                   <CheckCircle size={16} /> Mark Complete
                 </button>
               )}
+              {completeError && (
+                <div style={{ color: '#d63031', fontSize: '12px', textAlign: 'center' }}>{completeError}</div>
+              )}
               <button className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '14px' }}
-                onClick={() => setSelected(null)}>
+                onClick={() => { setSelected(null); setCompleteError(null) }}>
                 Close
               </button>
             </div>
@@ -288,6 +331,9 @@ export default function TechnicianPage() {
                   style={{ background: '#0d1829', border: '1px solid #1a2d45', borderRadius: '8px', color: '#e2e8f0', padding: '10px 12px', fontSize: '14px', width: '100%', outline: 'none' }}
                 />
               </div>
+              {testError && (
+                <div style={{ color: '#d63031', fontSize: '13px', textAlign: 'center', marginBottom: '12px' }}>{testError}</div>
+              )}
               <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: '15px' }} disabled={saving}>
                 {saving ? 'Submitting…' : 'Submit Water Test'}
               </button>

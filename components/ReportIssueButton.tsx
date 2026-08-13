@@ -15,18 +15,20 @@ export default function ReportIssueButton({ iconOnly = true }: { iconOnly?: bool
   const [description, setDescription] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [workaround, setWorkaround] = useState<string | null>(null)
   const [done, setDone] = useState(false)
 
   function reset() {
     setType('bug'); setPriority('medium'); setTitle(''); setDescription('')
-    setFile(null); setWorkaround(null); setDone(false)
+    setFile(null); setWorkaround(null); setDone(false); setError(null)
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) return
     setSaving(true)
+    setError(null)
 
     let screenshotUrl: string | null = null
     if (file) {
@@ -43,18 +45,25 @@ export default function ReportIssueButton({ iconOnly = true }: { iconOnly?: bool
       } catch { /* screenshot is optional — proceed without it */ }
     }
 
-    const res = await fetch('/api/feedback', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type, title: title.trim(), description, priority,
-        page_url: window.location.pathname, screenshot_url: screenshotUrl,
-      }),
-    })
-    setSaving(false)
-    if (res.ok) {
-      const { diagnosis } = await res.json()
-      setWorkaround(diagnosis?.workaround ?? null)
-      setDone(true)
+    try {
+      const res = await fetch('/api/feedback', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type, title: title.trim(), description, priority,
+          page_url: window.location.pathname, screenshot_url: screenshotUrl,
+        }),
+      })
+      if (res.ok) {
+        const { diagnosis } = await res.json()
+        setWorkaround(diagnosis?.workaround ?? null)
+        setDone(true)
+      } else {
+        setError('Could not submit this report — try again.')
+      }
+    } catch {
+      setError('No connection — this report was not submitted. Try again when back online.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -140,6 +149,9 @@ export default function ReportIssueButton({ iconOnly = true }: { iconOnly?: bool
                     <input type="file" accept="image/*" onChange={e => setFile(e.target.files?.[0] ?? null)} />
                   </div>
 
+                  {error && (
+                    <div style={{ color: '#d63031', fontSize: '13px', marginBottom: '12px' }}>{error}</div>
+                  )}
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                     <button type="button" className="btn btn-secondary" onClick={close}>Cancel</button>
                     <button type="submit" className="btn btn-primary" disabled={saving || !title.trim()}>

@@ -32,16 +32,22 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json()
+  const isCompleted = (body.status ?? 'completed') === 'completed'
 
-  // Build flag summary from any failed/concerning items
+  // Build flag summary from any failed/concerning items — only evaluated on a genuinely
+  // completed checklist. A partial "Save & Exit" (status: in_progress) hasn't reached every
+  // step yet, so evaluating flags on it would trip false alarms (e.g. "First aid kit not OK"
+  // before the technician has even reached the Equipment step) and spam management.
   const flags: string[] = []
-  if (body.aed_self_test === 'fail')              flags.push('AED self test FAILED')
-  if (body.aed_check === 'fail')                  flags.push('AED daily check FAILED')
-  if (body.safety_equipment_check === 'fail')     flags.push('Safety equipment check FAILED')
-  if (body.oxygen_equipment_check === 'fail')     flags.push('Oxygen equipment check FAILED')
-  if (body.water_clarity === 'concern')           flags.push('Water clarity concern')
-  if (body.deck_perimeter_walk === 'issue')       flags.push('Deck perimeter issue noted')
-  if (!body.first_aid_kit_ok)                     flags.push('First aid kit not OK')
+  if (isCompleted) {
+    if (body.aed_self_test === 'fail')              flags.push('AED self test FAILED')
+    if (body.aed_check === 'fail')                  flags.push('AED daily check FAILED')
+    if (body.safety_equipment_check === 'fail')     flags.push('Safety equipment check FAILED')
+    if (body.oxygen_equipment_check === 'fail')     flags.push('Oxygen equipment check FAILED')
+    if (body.water_clarity === 'concern')           flags.push('Water clarity concern')
+    if (body.deck_perimeter_walk === 'issue')       flags.push('Deck perimeter issue noted')
+    if (!body.first_aid_kit_ok)                     flags.push('First aid kit not OK')
+  }
 
   const checklistPayload = {
     shift_id:               body.shift_id || null,

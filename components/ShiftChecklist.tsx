@@ -418,7 +418,10 @@ function EndOfShiftStep({ form, setForm }: { form: any; setForm: any }) {
 export default function ShiftChecklist({ poolId, poolName, shiftId, staffName, onClose, onSubmitted }: Props) {
   const [step, setStep] = useState<Step>('pre_shift')
   const [saving, setSaving] = useState(false)
+  const [exiting, setExiting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [flags, setFlags] = useState<string[]>([])
+  const [checklistId, setChecklistId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<Session[]>([blankSession()])
   const [form, setForm] = useState({
     pre_shift_time: '',
@@ -460,26 +463,65 @@ export default function ShiftChecklist({ poolId, poolName, shiftId, staffName, o
 
   const stepIdx = steps.findIndex(s => s.id === step)
 
+  function buildPayload(status: 'in_progress' | 'completed') {
+    return {
+      ...(checklistId ? { id: checklistId } : {}),
+      pool_id: poolId,
+      shift_id: shiftId,
+      ...form,
+      sessions,
+      checklist_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
+      status,
+    }
+  }
+
   async function handleSubmit() {
     setSaving(true)
-    const res = await fetch('/api/technician/checklist', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        pool_id: poolId,
-        shift_id: shiftId,
-        ...form,
-        sessions,
-        checklist_date: new Date().toLocaleDateString('en-CA', { timeZone: 'Australia/Sydney' }),
-        status: 'completed',
-      }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setFlags(data.flags ?? [])
-      setStep('submitted')
+    setError(null)
+    try {
+      const res = await fetch('/api/technician/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload('completed')),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setFlags(data.flags ?? [])
+        setStep('submitted')
+      } else {
+        setError(data.error ?? 'Could not submit this checklist — try again.')
+      }
+    } catch {
+      setError('No connection — this checklist was not submitted. Try again when back online.')
+    } finally {
+      setSaving(false)
     }
-    setSaving(false)
+  }
+
+  // "Save & Exit" persists the checklist as in_progress (upserting the same row via
+  // checklistId) so partially-completed safety data — AED checks, incident notes —
+  // is never silently discarded, unlike a plain close that just unmounted this component.
+  async function handleSaveAndExit() {
+    setExiting(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/technician/checklist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload('in_progress')),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        if (data.checklist_id) setChecklistId(data.checklist_id)
+        onClose()
+      } else {
+        setError(data.error ?? 'Could not save your progress — try again before exiting.')
+        setExiting(false)
+      }
+    } catch {
+      setError('No connection — your progress was not saved. Try again before exiting.')
+      setExiting(false)
+    }
   }
 
   if (step === 'submitted') {
@@ -515,8 +557,9 @@ export default function ShiftChecklist({ poolId, poolName, shiftId, staffName, o
             <div style={{ fontWeight: '700', fontSize: '16px', color: '#e2e8f0' }}>Shift Checklist</div>
             <div style={{ fontSize: '12px', color: '#64748b' }}>{poolName}</div>
           </div>
-          <button onClick={onClose} style={{ background: '#121f35', border: '1px solid #1a2d45', borderRadius: '8px', color: '#94a3b8', padding: '6px 14px', cursor: 'pointer', fontSize: '12px' }}>
-            Save & Exit
+          <button onClick={handleSaveAndExit} disabled={exiting}
+            style={{ background: '#121f35', border: '1px solid #1a2d45', borderRadius: '8px', color: '#94a3b8', padding: '6px 14px', cursor: exiting ? 'default' : 'pointer', fontSize: '12px', opacity: exiting ? 0.6 : 1 }}>
+            {exiting ? 'Saving…' : 'Save & Exit'}
           </button>
         </div>
         {/* Step indicators */}
@@ -536,6 +579,11 @@ export default function ShiftChecklist({ poolId, poolName, shiftId, staffName, o
 
       {/* Content */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+        {error && (
+          <div style={{ background: '#d6303120', border: '1px solid #d6303140', borderRadius: '8px', padding: '12px 14px', marginBottom: '16px', color: '#fca5a5', fontSize: '13px' }}>
+            {error}
+          </div>
+        )}
         {step === 'pre_shift'   && <PreShiftStep form={form} setForm={setForm} />}
         {step === 'equipment'   && <EquipmentStep form={form} setForm={setForm} />}
         {step === 'sessions'    && <SessionsStep sessions={sessions} setSessions={setSessions} staffName={staffName} />}

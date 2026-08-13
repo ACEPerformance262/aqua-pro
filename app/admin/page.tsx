@@ -1741,8 +1741,8 @@ function ComplianceTab() {
                   <tr key={ev.id}>
                     <td style={{ fontWeight: '600' }}>{ev.pools?.name ?? '—'}</td>
                     <td>{ev.event_type}</td>
-                    <td style={{ color: new Date(ev.due_date) < new Date() && ev.status !== 'completed' ? 'var(--red)' : 'var(--text-muted)' }}>
-                      {ev.due_date}
+                    <td style={{ color: !!ev.due_date && new Date(ev.due_date) < new Date() && ev.status !== 'completed' ? 'var(--red)' : 'var(--text-muted)' }}>
+                      {ev.due_date ?? '—'}
                     </td>
                     <td>
                       <select value={ev.status} onChange={e => updateEventStatus(ev.id, e.target.value)}

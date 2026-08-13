@@ -90,6 +90,7 @@ function CheckRow({ label, checked, onChange }: { label: string; checked: boolea
 export default function PlantLog({ poolId, poolName, shiftId, onClose, onSubmitted }: Props) {
   const [step, setStep] = useState<Step>('pool_condition')
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   // Pool condition
   const [waterClarity, setWaterClarity] = useState('')
@@ -160,6 +161,7 @@ export default function PlantLog({ poolId, poolName, shiftId, onClose, onSubmitt
 
   async function handleSubmit() {
     setSaving(true)
+    setError(null)
     const n = (v: string) => v === '' ? null : parseFloat(v)
     const payload = {
       pool_id: poolId,
@@ -203,15 +205,23 @@ export default function PlantLog({ poolId, poolName, shiftId, onClose, onSubmitt
       notes: notes || null,
     }
 
-    const res = await fetch('/api/technician/plant-log', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    setSaving(false)
-    if (res.ok) {
-      setStep('submitted')
-      setTimeout(() => onSubmitted(), 1800)
+    try {
+      const res = await fetch('/api/technician/plant-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (res.ok) {
+        setStep('submitted')
+        setTimeout(() => onSubmitted(), 1800)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        setError(data.error ?? 'Could not save this plant log — try again.')
+      }
+    } catch {
+      setError('No connection — this plant log was not saved. Try again when back online.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -362,6 +372,11 @@ export default function PlantLog({ poolId, poolName, shiftId, onClose, onSubmitt
               <textarea rows={3} value={notes} onChange={e => setNotes(e.target.value)}
                 style={{ ...inputStyle, fontSize: '14px' }} />
             </div>
+            {error && (
+              <div style={{ background: '#d6303120', border: '1px solid #d6303140', borderRadius: '8px', padding: '12px 14px', color: '#fca5a5', fontSize: '13px' }}>
+                {error}
+              </div>
+            )}
           </div>
         )}
 

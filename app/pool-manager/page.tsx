@@ -11,8 +11,11 @@ export default function PoolManagerPage() {
   const [tests, setTests] = useState<any[]>([])
   const [compliance, setCompliance] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
 
-  useEffect(() => {
+  function loadData() {
+    setLoading(true)
+    setLoadError(false)
     Promise.all([
       fetch('/api/auth/me').then(r => r.json()),
       fetch('/api/pool-manager/my-pool').then(r => r.json()),
@@ -22,8 +25,13 @@ export default function PoolManagerPage() {
       setTests(p.recentTests ?? [])
       setCompliance(p.compliance ?? [])
       setLoading(false)
+    }).catch(() => {
+      setLoadError(true)
+      setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(() => { loadData() }, [])
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -57,6 +65,11 @@ export default function PoolManagerPage() {
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '28px 20px' }}>
         {loading ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>Loading…</div>
+        ) : loadError ? (
+          <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>
+            <div style={{ marginBottom: '16px' }}>Couldn&apos;t load your pool status — check your connection.</div>
+            <button className="btn btn-primary" onClick={loadData} style={{ display: 'inline-flex' }}>Retry</button>
+          </div>
         ) : !pool ? (
           <div style={{ textAlign: 'center', color: '#64748b', padding: '48px' }}>No pool assigned to your account. Contact the administrator.</div>
         ) : (
@@ -120,7 +133,7 @@ export default function PoolManagerPage() {
               {compliance.length === 0 ? (
                 <div style={{ color: '#64748b', padding: '16px' }}>No compliance events scheduled</div>
               ) : compliance.map((ev: any) => {
-                const overdue = new Date(ev.due_date) < new Date() && ev.status !== 'completed'
+                const overdue = !!ev.due_date && new Date(ev.due_date) < new Date() && ev.status !== 'completed'
                 return (
                   <div key={ev.id} style={{
                     background: '#0d1829', border: `1px solid ${overdue ? '#d6303140' : '#1a2d45'}`,
