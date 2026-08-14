@@ -16,7 +16,7 @@ export default function TechnicianPage() {
   const [showChecklist, setShowChecklist] = useState(false)
   const [showPlantLog, setShowPlantLog] = useState(false)
   const [testForm, setTestForm] = useState({
-    free_chlorine: '', combined_chlorine: '', ph: '', total_alkalinity: '',
+    free_chlorine: '', combined_chlorine: '', total_chlorine: '', ph: '', total_alkalinity: '',
     calcium_hardness: '', cyanuric_acid: '', salt_level: '', phosphates: '',
     temperature_c: '', turbidity: '', notes: '',
   })
@@ -27,7 +27,7 @@ export default function TechnicianPage() {
   const [completeError, setCompleteError] = useState<string | null>(null)
 
   const blankTestForm = {
-    free_chlorine: '', combined_chlorine: '', ph: '', total_alkalinity: '',
+    free_chlorine: '', combined_chlorine: '', total_chlorine: '', ph: '', total_alkalinity: '',
     calcium_hardness: '', cyanuric_acid: '', salt_level: '', phosphates: '',
     temperature_c: '', turbidity: '', notes: '',
   }
@@ -89,7 +89,7 @@ export default function TechnicianPage() {
       tested_at: new Date().toISOString(),
       ...testForm,
     }
-    const numFields = ['free_chlorine','combined_chlorine','ph','total_alkalinity','calcium_hardness',
+    const numFields = ['free_chlorine','combined_chlorine','total_chlorine','ph','total_alkalinity','calcium_hardness',
       'cyanuric_acid','salt_level','phosphates','temperature_c','turbidity']
     numFields.forEach(f => { if (payload[f] === '') payload[f] = null })
 
@@ -310,6 +310,7 @@ export default function TechnicianPage() {
                 <div style={{ fontSize: '11px', fontWeight: '700', color: '#00b4d8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Sanitiser</div>
                 {numInput('free_chlorine', 'Free Chlorine (ppm)', '2.0')}
                 {numInput('combined_chlorine', 'Combined Chlorine (ppm)', '0.0')}
+                {numInput('total_chlorine', 'Total Chlorine (ppm)', '2.5')}
               </div>
               <div style={{ background: '#0d1829', borderRadius: '10px', padding: '16px', marginBottom: '12px' }}>
                 <div style={{ fontSize: '11px', fontWeight: '700', color: '#00b4d8', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '12px' }}>Balance</div>

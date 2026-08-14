@@ -7,6 +7,7 @@ export type RiskLevel = 'green' | 'yellow' | 'orange' | 'red'
 export interface WaterTestValues {
   freeChlorine?: number
   combinedChlorine?: number
+  totalChlorine?: number
   bromine?: number
   ph?: number
   totalAlkalinity?: number
@@ -70,6 +71,18 @@ const RANGES: Record<string, Record<string, ParameterRange>> = {
     ph:                 { min: 7.2, max: 7.8,  ideal: 7.5,  unit: 'pH',  priority: 'critical', label: 'pH' },
     totalAlkalinity:    { min: 80,  max: 120,  ideal: 100,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
     calciumHardness:    { min: 150, max: 250,  ideal: 200,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+  },
+  // Sourced from a real WQRMP (Better Health Network hydrotherapy pool, Aug 2026, Section 5.1) —
+  // no hydrotherapy targets existed in this codebase before that. Warm water (34-36C), high bather
+  // load and typically no secondary disinfection push these tighter than a standard indoor pool.
+  hydrotherapy_chlorine: {
+    freeChlorine:       { min: 2.5, max: 3.5,  ideal: 2.75, unit: 'ppm', priority: 'critical', label: 'Free Chlorine' },
+    combinedChlorine:   { min: 0,   max: 0.5,  ideal: 0.0,  unit: 'ppm', priority: 'critical', label: 'Combined Chlorine' },
+    totalChlorine:      { min: 0,   max: 4.0,  ideal: 2.5,  unit: 'ppm', priority: 'high',     label: 'Total Chlorine' },
+    ph:                 { min: 7.4, max: 7.6,  ideal: 7.55, unit: 'pH',  priority: 'critical', label: 'pH' },
+    totalAlkalinity:    { min: 100, max: 140,  ideal: 120,  unit: 'ppm', priority: 'high',     label: 'Total Alkalinity' },
+    calciumHardness:    { min: 100, max: 250,  ideal: 175,  unit: 'ppm', priority: 'normal',   label: 'Calcium Hardness' },
+    turbidity:          { min: 0,   max: 0.5,  ideal: 0.2,  unit: 'NTU', priority: 'high',     label: 'Turbidity' },
   },
 }
 

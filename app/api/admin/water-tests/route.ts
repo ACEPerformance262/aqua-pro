@@ -43,6 +43,7 @@ export async function POST(req: NextRequest) {
   const values: WaterTestValues = {
     freeChlorine: body.free_chlorine ?? undefined,
     combinedChlorine: body.combined_chlorine ?? undefined,
+    totalChlorine: body.total_chlorine ?? undefined,
     bromine: body.bromine ?? undefined,
     ph: body.ph ?? undefined,
     totalAlkalinity: body.total_alkalinity ?? undefined,
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
       tested_at: body.tested_at ?? new Date().toISOString(),
       free_chlorine: body.free_chlorine ?? null,
       combined_chlorine: body.combined_chlorine ?? null,
+      total_chlorine: body.total_chlorine ?? null,
       bromine: body.bromine ?? null,
       ph: body.ph ?? null,
       total_alkalinity: body.total_alkalinity ?? null,

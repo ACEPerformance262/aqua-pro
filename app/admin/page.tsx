@@ -390,7 +390,7 @@ function WaterTestingTab() {
   const [filterRisk, setFilterRisk] = useState('')
   const [form, setForm] = useState({
     pool_id: '', tested_at: new Date().toISOString().slice(0, 16),
-    free_chlorine: '', combined_chlorine: '', ph: '',
+    free_chlorine: '', combined_chlorine: '', total_chlorine: '', ph: '',
     total_alkalinity: '', calcium_hardness: '', cyanuric_acid: '',
     total_dissolved_solids: '', salt_level: '', phosphates: '',
     temperature_c: '', turbidity: '', notes: '',
@@ -417,7 +417,7 @@ function WaterTestingTab() {
     setSaving(true)
     const payload: Record<string, any> = { ...form }
     // Convert empty strings to null for numeric fields
-    const numFields = ['free_chlorine','combined_chlorine','ph','total_alkalinity','calcium_hardness',
+    const numFields = ['free_chlorine','combined_chlorine','total_chlorine','ph','total_alkalinity','calcium_hardness',
       'cyanuric_acid','total_dissolved_solids','salt_level','phosphates','temperature_c','turbidity']
     numFields.forEach(f => { if (payload[f] === '') payload[f] = null })
     const res = await fetch('/api/admin/water-tests', {
@@ -541,9 +541,10 @@ function WaterTestingTab() {
                 <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-muted)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                   Sanitiser
                 </div>
-                <div style={{ ...s.formGrid, gridTemplateColumns: 'repeat(3,1fr)' }}>
+                <div style={{ ...s.formGrid, gridTemplateColumns: 'repeat(4,1fr)' }}>
                   {numField('free_chlorine', 'Free Chlorine (ppm)', '2.0')}
                   {numField('combined_chlorine', 'Combined Chlorine (ppm)', '0.0')}
+                  {numField('total_chlorine', 'Total Chlorine (ppm)', '2.5')}
                   {numField('bromine', 'Bromine (ppm)', '4.0')}
                 </div>
               </div>
@@ -604,6 +605,7 @@ function WaterTestingTab() {
               {[
                 ['Free Chlorine', selectedTest.free_chlorine, 'ppm', 1.0, 3.0],
                 ['Combined Cl', selectedTest.combined_chlorine, 'ppm', 0, 0.2],
+                ['Total Cl', selectedTest.total_chlorine, 'ppm', 0, 4.0],
                 ['pH', selectedTest.ph, '', 7.2, 7.6],
                 ['Total Alkalinity', selectedTest.total_alkalinity, 'ppm', 80, 120],
                 ['Calcium Hardness', selectedTest.calcium_hardness, 'ppm', 200, 400],
