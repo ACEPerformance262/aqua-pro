@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   // Validate sensor — sensor_key is stored hashed, so hash the incoming raw key before comparing
   const { data: sensor } = await supabaseAdmin
     .from('iot_sensors')
-    .select('id, pool_id, is_active, pools(pool_type, sanitiser_type, volume_litres, name)')
+    .select('id, pool_id, is_active, pools(pool_type, sanitiser_type, volume_litres, name, close_threshold_free_chlorine, close_threshold_ph_low, close_threshold_ph_high)')
     .eq('sensor_key', hashSensorKey(sensor_key))
     .single()
 
@@ -53,7 +53,12 @@ export async function POST(req: NextRequest) {
   const { riskLevel, flags } = classifyRisk(
     values,
     (pool?.pool_type ?? 'outdoor') as PoolType,
-    (pool?.sanitiser_type ?? 'chlorine') as SanitiserType
+    (pool?.sanitiser_type ?? 'chlorine') as SanitiserType,
+    {
+      closeThresholdFreeChlorine: pool?.close_threshold_free_chlorine,
+      closeThresholdPhLow: pool?.close_threshold_ph_low,
+      closeThresholdPhHigh: pool?.close_threshold_ph_high,
+    },
   )
 
   const { data: test, error } = await supabaseAdmin

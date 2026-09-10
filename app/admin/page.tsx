@@ -7,16 +7,25 @@ import {
   Activity, Shield, MapPin, Bell, FlaskConical,
   XCircle, Wrench, CalendarX, Check, Trash2, Bug,
   ChevronUp, ChevronDown, Pencil, Power,
+  TestTube, Calculator, ListChecks, FileText,
 } from 'lucide-react'
 import { RISK_COLOURS, RISK_LABELS } from '@/lib/water-chemistry'
 import ReportIssueButton from '@/components/ReportIssueButton'
+import PoolContacts from '@/components/PoolContacts'
+import AttachmentPanel from '@/components/AttachmentPanel'
+import MicrobiologyTab from '@/components/MicrobiologyTab'
+import RiskRegisterTab from '@/components/RiskRegisterTab'
+import ChemistryCalculatorTab from '@/components/ChemistryCalculatorTab'
+import WqrmpTab from '@/components/WqrmpTab'
 
-type Tab = 'overview' | 'pools' | 'water-testing' | 'staff' | 'checklists' | 'assets' | 'compliance' | 'risk' | 'remote-sites' | 'chemicals' | 'closures' | 'errors'
+type Tab = 'overview' | 'pools' | 'water-testing' | 'microbiology' | 'chemistry-calc' | 'staff' | 'checklists' | 'assets' | 'compliance' | 'risk' | 'risk-register' | 'remote-sites' | 'chemicals' | 'closures' | 'wqrmp' | 'errors'
 
 const NAV: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'overview',      label: 'Overview',       icon: BarChart2 },
   { id: 'pools',         label: 'Pools',          icon: Droplets },
   { id: 'water-testing', label: 'Water Testing',  icon: Activity },
+  { id: 'microbiology',  label: 'Microbiology',   icon: TestTube },
+  { id: 'chemistry-calc', label: 'Chemistry Calculator', icon: Calculator },
   { id: 'staff',         label: 'Staff & Shifts',  icon: Users },
   { id: 'checklists',    label: 'Checklists',     icon: ClipboardList },
   { id: 'assets',        label: 'Asset Register', icon: Package },
@@ -24,7 +33,9 @@ const NAV: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'chemicals',     label: 'Chemicals',      icon: FlaskConical },
   { id: 'closures',      label: 'Pool Closures',  icon: XCircle },
   { id: 'risk',          label: 'Risk',           icon: AlertTriangle },
+  { id: 'risk-register', label: 'Risk Register',  icon: ListChecks },
   { id: 'remote-sites',  label: 'Remote Sites',   icon: Wifi },
+  { id: 'wqrmp',         label: 'WQRMP Reports',  icon: FileText },
   { id: 'errors',        label: 'Error Log',      icon: Bug },
 ]
 
@@ -177,6 +188,7 @@ const BLANK_POOL_FORM = {
   surface_area_m2: '', max_bather_load: '', owner_name: '', owner_email: '',
   owner_phone: '', is_commercial: false, health_licence_number: '',
   licence_expiry: '', notes: '',
+  ph_correction_method: 'acid', close_threshold_free_chlorine: '', close_threshold_ph_low: '', close_threshold_ph_high: '',
 }
 
 function PoolsTab() {
@@ -212,6 +224,10 @@ function PoolsTab() {
       owner_email: pool.owner_email ?? '', owner_phone: pool.owner_phone ?? '',
       is_commercial: pool.is_commercial ?? false, health_licence_number: pool.health_licence_number ?? '',
       licence_expiry: pool.licence_expiry ?? '', notes: pool.notes ?? '',
+      ph_correction_method: pool.ph_correction_method ?? 'acid',
+      close_threshold_free_chlorine: pool.close_threshold_free_chlorine ?? '',
+      close_threshold_ph_low: pool.close_threshold_ph_low ?? '',
+      close_threshold_ph_high: pool.close_threshold_ph_high ?? '',
     })
     setShowModal(true)
   }
@@ -366,11 +382,44 @@ function PoolsTab() {
                 <label>Notes</label>
                 <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
               </div>
+
+              <div style={{ ...s.sectionTitle, fontSize: '13px', marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+                Water Chemistry Settings
+              </div>
+              <div style={s.formGroup}>
+                <label>pH Correction Method</label>
+                <select value={form.ph_correction_method} onChange={e => setForm(f => ({ ...f, ph_correction_method: e.target.value }))}>
+                  <option value="acid">Acid (Muriatic / Hydrochloric)</option>
+                  <option value="co2">CO₂ Injection</option>
+                </select>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Determines the dosing chemical suggested when pH is high, in both the water test form and the Chemistry Calculator.
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '10px 0 4px' }}>
+                Site closure thresholds — leave blank to use the standard defaults (FC &lt; 0.5, pH outside 6.8–8.2)
+              </div>
+              <div style={{ ...s.formGrid, gridTemplateColumns: '1fr 1fr 1fr' }}>
+                <div style={s.formGroup}>
+                  <label>Close if FC below</label>
+                  <input type="number" step="0.1" value={form.close_threshold_free_chlorine} onChange={e => setForm(f => ({ ...f, close_threshold_free_chlorine: e.target.value }))} placeholder="0.5" />
+                </div>
+                <div style={s.formGroup}>
+                  <label>Close if pH below</label>
+                  <input type="number" step="0.1" value={form.close_threshold_ph_low} onChange={e => setForm(f => ({ ...f, close_threshold_ph_low: e.target.value }))} placeholder="6.8" />
+                </div>
+                <div style={s.formGroup}>
+                  <label>Close if pH above</label>
+                  <input type="number" step="0.1" value={form.close_threshold_ph_high} onChange={e => setForm(f => ({ ...f, close_threshold_ph_high: e.target.value }))} placeholder="8.2" />
+                </div>
+              </div>
+
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
                 <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
                 <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving…' : editingPool ? 'Save Changes' : 'Add Pool'}</button>
               </div>
             </form>
+            {editingPool && <PoolContacts poolId={editingPool.id} />}
           </div>
         </div>
       )}
@@ -1557,6 +1606,7 @@ function AssetsTab() {
                   {log.cost && <span>Cost: ${Number(log.cost).toLocaleString()}</span>}
                   {log.next_service_date && <span style={{ color: 'var(--aqua)' }}>Next: {log.next_service_date}</span>}
                 </div>
+                <AttachmentPanel entityType="asset_service_log" entityId={log.id} />
               </div>
             ))}
 
@@ -1990,7 +2040,8 @@ function RiskTab() {
                 {i.incident_type.replace('_', ' ')} — {new Date(i.occurred_at).toLocaleDateString('en-AU')}
               </div>
               <div style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '8px' }}>{i.description}</div>
-              <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: '11px' }}
+              <AttachmentPanel entityType="incident" entityId={i.id} />
+              <button className="btn btn-secondary" style={{ padding: '3px 10px', fontSize: '11px', marginTop: '10px' }}
                 onClick={() => resolveIncident(i.id)}>
                 <Check size={12} /> Resolve
               </button>
@@ -3384,6 +3435,8 @@ export default function AdminPage() {
     overview: 'Overview',
     pools: 'Pool Register',
     'water-testing': 'Water Testing',
+    microbiology: 'Microbiology Testing',
+    'chemistry-calc': 'Chemistry Calculator',
     staff: 'Staff & Scheduling',
     checklists: 'Shift Checklists',
     assets: 'Asset Register',
@@ -3391,7 +3444,9 @@ export default function AdminPage() {
     chemicals: 'Chemical Inventory',
     closures: 'Pool Closures',
     risk: 'Risk Management',
+    'risk-register': 'Corrective Actions & Risk Register',
     'remote-sites': 'Remote Sites & IoT',
+    wqrmp: 'WQRMP Reports',
     errors: 'Error Log',
   }
 
@@ -3507,6 +3562,8 @@ export default function AdminPage() {
         {tab === 'overview'      && <OverviewTab />}
         {tab === 'pools'         && <PoolsTab />}
         {tab === 'water-testing' && <WaterTestingTab />}
+        {tab === 'microbiology'  && <MicrobiologyTab />}
+        {tab === 'chemistry-calc' && <ChemistryCalculatorTab />}
         {tab === 'staff'         && <StaffTab />}
         {tab === 'checklists'    && <ChecklistsTab />}
         {tab === 'assets'        && <AssetsTab />}
@@ -3514,7 +3571,9 @@ export default function AdminPage() {
         {tab === 'chemicals'     && <ChemicalsTab />}
         {tab === 'closures'      && <ClosuresTab />}
         {tab === 'risk'          && <RiskTab />}
+        {tab === 'risk-register' && <RiskRegisterTab />}
         {tab === 'remote-sites'  && <RemoteSitesTab />}
+        {tab === 'wqrmp'         && <WqrmpTab />}
         {tab === 'errors'        && <FeedbackTab />}
       </main>
     </div>

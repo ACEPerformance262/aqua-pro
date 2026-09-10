@@ -1,0 +1,129 @@
+'use client'
+import { useState, useEffect } from 'react'
+import { Calculator } from 'lucide-react'
+import { RISK_COLOURS, RISK_LABELS } from '@/lib/water-chemistry'
+
+const BLANK = { free_chlorine: '', ph: '', total_alkalinity: '', calcium_hardness: '', cyanuric_acid: '', salt_level: '', temperature_c: '' }
+
+export default function ChemistryCalculatorTab() {
+  const [pools, setPools] = useState<any[]>([])
+  const [poolId, setPoolId] = useState('')
+  const [values, setValues] = useState(BLANK)
+  const [result, setResult] = useState<any>(null)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    fetch('/api/admin/pools').then(r => r.json()).then(d => setPools(d.pools ?? []))
+  }, [])
+
+  async function calculate(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true); setError(''); setResult(null)
+    const res = await fetch('/api/admin/chemistry-calc', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        pool_id: poolId,
+        free_chlorine: values.free_chlorine ? Number(values.free_chlorine) : undefined,
+        ph: values.ph ? Number(values.ph) : undefined,
+        total_alkalinity: values.total_alkalinity ? Number(values.total_alkalinity) : undefined,
+        calcium_hardness: values.calcium_hardness ? Number(values.calcium_hardness) : undefined,
+        cyanuric_acid: values.cyanuric_acid ? Number(values.cyanuric_acid) : undefined,
+        salt_level: values.salt_level ? Number(values.salt_level) : undefined,
+        temperature_c: values.temperature_c ? Number(values.temperature_c) : undefined,
+      }),
+    })
+    const d = await res.json()
+    if (!res.ok) { setError(d.error ?? 'Calculation failed'); setLoading(false); return }
+    setResult(d)
+    setLoading(false)
+  }
+
+  return (
+    <>
+      <div style={{ fontSize: '13px', color: 'var(--text-muted)', maxWidth: '600px', marginBottom: '24px' }}>
+        Enter a set of readings for any pool and get an instant dose recommendation and LSI — without logging a full water test. Useful mid-visit, before you've finished a whole reading set.
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'flex-start' }}>
+        <div className="card">
+          <div style={{ fontSize: '16px', fontWeight: '700', marginBottom: '16px', color: 'var(--text)' }}>
+            <Calculator size={16} style={{ verticalAlign: '-3px', marginRight: '6px' }} />Readings
+          </div>
+          <form onSubmit={calculate}>
+            <div style={{ marginBottom: '14px' }}>
+              <label>Pool *</label>
+              <select required value={poolId} onChange={e => setPoolId(e.target.value)}>
+                <option value="">Select pool…</option>
+                {pools.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '14px' }}>
+              <div><label>Free Chlorine (ppm)</label><input type="number" step="0.1" value={values.free_chlorine} onChange={e => setValues(v => ({ ...v, free_chlorine: e.target.value }))} /></div>
+              <div><label>pH</label><input type="number" step="0.1" value={values.ph} onChange={e => setValues(v => ({ ...v, ph: e.target.value }))} /></div>
+              <div><label>Total Alkalinity (ppm)</label><input type="number" value={values.total_alkalinity} onChange={e => setValues(v => ({ ...v, total_alkalinity: e.target.value }))} /></div>
+              <div><label>Calcium Hardness (ppm)</label><input type="number" value={values.calcium_hardness} onChange={e => setValues(v => ({ ...v, calcium_hardness: e.target.value }))} /></div>
+              <div><label>Cyanuric Acid (ppm)</label><input type="number" value={values.cyanuric_acid} onChange={e => setValues(v => ({ ...v, cyanuric_acid: e.target.value }))} /></div>
+              <div><label>Salt Level (ppm)</label><input type="number" value={values.salt_level} onChange={e => setValues(v => ({ ...v, salt_level: e.target.value }))} /></div>
+              <div><label>Temperature (°C)</label><input type="number" step="0.1" value={values.temperature_c} onChange={e => setValues(v => ({ ...v, temperature_c: e.target.value }))} /></div>
+            </div>
+            {error && <div style={{ color: 'var(--red)', fontSize: '12px', marginBottom: '12px' }}>{error}</div>}
+            <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>{loading ? 'Calculating…' : 'Calculate'}</button>
+          </form>
+        </div>
+
+        <div>
+          {!result ? (
+            <div className="card" style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '48px 20px' }}>
+              Enter readings and calculate to see recommendations here.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Risk Level</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: RISK_COLOURS[result.risk.riskLevel as keyof typeof RISK_COLOURS] }}>
+                    {RISK_LABELS[result.risk.riskLevel as keyof typeof RISK_LABELS]}
+                  </div>
+                </div>
+                {result.lsi !== null && (
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>LSI (scale balance)</div>
+                    <div style={{ fontSize: '18px', fontWeight: '700', color: Math.abs(result.lsi) <= 0.3 ? '#00b894' : '#e17055' }}>
+                      {result.lsi > 0 ? '+' : ''}{result.lsi}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="card">
+                <div style={{ fontSize: '13px', fontWeight: '700', marginBottom: '10px', color: 'var(--text)' }}>
+                  Dosing Recommendations
+                  <span style={{ fontWeight: '400', color: 'var(--text-muted)', fontSize: '11px', marginLeft: '8px' }}>
+                    ({result.ph_correction_method === 'co2' ? 'CO₂ correction' : 'acid correction'} for this site)
+                  </span>
+                </div>
+                {result.doses.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: '#00b894' }}>All entered parameters are within range — no dosing needed.</div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {result.doses.map((d: any, i: number) => (
+                      <div key={i} style={{ padding: '10px 12px', background: 'var(--surface-2)', borderRadius: '8px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: '600', color: 'var(--text)' }}>
+                          <span>{d.parameter}: {d.currentValue} → {d.targetValue}</span>
+                          <span style={{ color: 'var(--aqua)' }}>{d.dose}</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{d.chemical}</div>
+                        {d.notes && <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>{d.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  )
+}

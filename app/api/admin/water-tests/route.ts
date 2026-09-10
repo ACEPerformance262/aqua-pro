@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   // Fetch pool for type/sanitiser info
   const { data: pool } = await supabaseAdmin
     .from('pools')
-    .select('pool_type, sanitiser_type, volume_litres')
+    .select('pool_type, sanitiser_type, volume_litres, close_threshold_free_chlorine, close_threshold_ph_low, close_threshold_ph_high')
     .eq('id', body.pool_id)
     .single()
 
@@ -58,7 +58,11 @@ export async function POST(req: NextRequest) {
 
   const poolType = (pool?.pool_type ?? 'outdoor') as PoolType
   const sanitiserType = (pool?.sanitiser_type ?? 'chlorine') as SanitiserType
-  const { riskLevel, flags } = classifyRisk(values, poolType, sanitiserType)
+  const { riskLevel, flags } = classifyRisk(values, poolType, sanitiserType, {
+    closeThresholdFreeChlorine: pool?.close_threshold_free_chlorine,
+    closeThresholdPhLow: pool?.close_threshold_ph_low,
+    closeThresholdPhHigh: pool?.close_threshold_ph_high,
+  })
 
   const { data, error } = await supabaseAdmin
     .from('water_tests')

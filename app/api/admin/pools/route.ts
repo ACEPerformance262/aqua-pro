@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
       health_licence_number: body.health_licence_number || null,
       licence_expiry: body.licence_expiry || null,
       notes: body.notes || null,
+      ph_correction_method: body.ph_correction_method || 'acid',
+      close_threshold_free_chlorine: body.close_threshold_free_chlorine ? Number(body.close_threshold_free_chlorine) : null,
+      close_threshold_ph_low: body.close_threshold_ph_low ? Number(body.close_threshold_ph_low) : null,
+      close_threshold_ph_high: body.close_threshold_ph_high ? Number(body.close_threshold_ph_high) : null,
     })
     .select()
     .single()
@@ -102,6 +106,10 @@ export async function PATCH(req: NextRequest) {
     health_licence_number: rest.health_licence_number || null,
     licence_expiry: rest.licence_expiry || null,
     notes: rest.notes || null,
+    ph_correction_method: rest.ph_correction_method || 'acid',
+    close_threshold_free_chlorine: rest.close_threshold_free_chlorine ? Number(rest.close_threshold_free_chlorine) : null,
+    close_threshold_ph_low: rest.close_threshold_ph_low ? Number(rest.close_threshold_ph_low) : null,
+    close_threshold_ph_high: rest.close_threshold_ph_high ? Number(rest.close_threshold_ph_high) : null,
   }
 
   const { data, error } = await supabaseAdmin

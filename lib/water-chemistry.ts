@@ -97,7 +97,22 @@ export interface RiskResult {
   criticalFlags: string[] // critical parameters out of range
 }
 
-export function classifyRisk(values: WaterTestValues, poolType: PoolType, sanitiserType: SanitiserType): RiskResult {
+// Per-site closure threshold override (pools.close_threshold_*) — a facility's real TARP
+// closure standard often doesn't match the generic codebase default (e.g. a hydrotherapy WQRMP
+// closing at FC < 2.0, well above the generic < 0.5 floor). Undefined/null fields fall back to
+// the original hardcoded defaults, so a pool with no overrides behaves exactly as before.
+export interface RiskThresholdOverrides {
+  closeThresholdFreeChlorine?: number | null
+  closeThresholdPhLow?: number | null
+  closeThresholdPhHigh?: number | null
+}
+
+export function classifyRisk(
+  values: WaterTestValues,
+  poolType: PoolType,
+  sanitiserType: SanitiserType,
+  overrides?: RiskThresholdOverrides,
+): RiskResult {
   const ranges = getRanges(poolType, sanitiserType)
   const flags: string[] = []
   const criticalFlags: string[] = []
@@ -111,13 +126,17 @@ export function classifyRisk(values: WaterTestValues, poolType: PoolType, saniti
     }
   }
 
+  const fcCloseAt = overrides?.closeThresholdFreeChlorine ?? 0.5
+  const phLowCloseAt = overrides?.closeThresholdPhLow ?? 6.8
+  const phHighCloseAt = overrides?.closeThresholdPhHigh ?? 8.2
+
   let riskLevel: RiskLevel = 'green'
   if (criticalFlags.length >= 1) {
-    // pH outside 6.8–8.2 or FC < 0.5 = RED (immediate closure risk)
+    // pH outside the site's closure band, or FC below the site's closure floor = RED (immediate closure risk)
     const phVal = values.ph
     const fcVal = values.freeChlorine
-    if ((phVal !== undefined && (phVal < 6.8 || phVal > 8.2)) ||
-        (fcVal !== undefined && fcVal < 0.5)) {
+    if ((phVal !== undefined && (phVal < phLowCloseAt || phVal > phHighCloseAt)) ||
+        (fcVal !== undefined && fcVal < fcCloseAt)) {
       riskLevel = 'red'
     } else {
       riskLevel = 'orange'
@@ -154,11 +173,14 @@ export interface DoseRecommendation {
   notes?: string
 }
 
+export type PhCorrectionMethod = 'acid' | 'co2'
+
 export function calculateDoses(
   values: WaterTestValues,
   poolType: PoolType,
   sanitiserType: SanitiserType,
-  volumeLitres: number
+  volumeLitres: number,
+  phCorrectionMethod: PhCorrectionMethod = 'acid',
 ): DoseRecommendation[] {
   const ranges = getRanges(poolType, sanitiserType)
   const recs: DoseRecommendation[] = []
@@ -209,16 +231,31 @@ export function calculateDoses(
       })
     } else if (values.ph > r.max) {
       const excess = values.ph - r.ideal
-      const L = ((excess / 0.1) * (volKL / 100) * 0.12).toFixed(1)
-      recs.push({
-        parameter: 'pH',
-        currentValue: values.ph,
-        targetValue: r.ideal,
-        chemical: 'pH Down (Muriatic / Hydrochloric Acid)',
-        dose: `${L} L`,
-        direction: 'decrease',
-        notes: 'Add acid SLOWLY with pump running — never add water to acid. Re-test after 4 hours.',
-      })
+      if (phCorrectionMethod === 'co2') {
+        // CO2 injection lowers pH without the total-alkalinity drop acid causes — common for
+        // commercial/hydrotherapy sites with a dosing controller already fitted for it.
+        const kgPerDay = ((excess / 0.1) * (volKL / 100) * 0.09).toFixed(2)
+        recs.push({
+          parameter: 'pH',
+          currentValue: values.ph,
+          targetValue: r.ideal,
+          chemical: 'CO₂ Injection',
+          dose: `~${kgPerDay} kg/day via dosing controller`,
+          direction: 'decrease',
+          notes: 'Confirm CO2 injection rate at the controller — this is an approximate daily consumption target, not a single manual dose. Re-test after the controller has run a full cycle (check controller log, typically 2-4 hours).',
+        })
+      } else {
+        const L = ((excess / 0.1) * (volKL / 100) * 0.12).toFixed(1)
+        recs.push({
+          parameter: 'pH',
+          currentValue: values.ph,
+          targetValue: r.ideal,
+          chemical: 'pH Down (Muriatic / Hydrochloric Acid)',
+          dose: `${L} L`,
+          direction: 'decrease',
+          notes: 'Add acid SLOWLY with pump running — never add water to acid. Re-test after 4 hours.',
+        })
+      }
     }
   }
 
