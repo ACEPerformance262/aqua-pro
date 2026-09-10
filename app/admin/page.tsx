@@ -74,10 +74,10 @@ const s = {
     marginBottom: '24px',
   } as React.CSSProperties,
   pageTitle: { fontSize: '22px', fontWeight: '700', color: '#e2e8f0', margin: 0 } as React.CSSProperties,
-  grid4: { display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
-  grid3: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
-  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
-  formGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' } as React.CSSProperties,
+  grid4: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
+  grid3: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
+  grid2: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px', marginBottom: '24px' } as React.CSSProperties,
+  formGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' } as React.CSSProperties,
   formGroup: { marginBottom: '16px' } as React.CSSProperties,
   sectionTitle: { fontSize: '16px', fontWeight: '700', color: '#e2e8f0', marginBottom: '16px' } as React.CSSProperties,
   badge: (colour: string): React.CSSProperties => ({
@@ -3451,10 +3451,10 @@ export default function AdminPage() {
   }
 
   return (
-    <div style={s.page}>
+    <div style={s.page} className="admin-shell">
       {/* Sidebar */}
-      <div style={s.sidebar}>
-        <div style={s.logo}>
+      <div style={s.sidebar} className="admin-sidebar">
+        <div style={s.logo} className="admin-logo">
           <div style={s.logoIcon}>💧</div>
           <div>
             <div style={{ fontSize: '14px', fontWeight: '800', color: '#00b4d8', letterSpacing: '0.5px' }}>AquaPro</div>
@@ -3462,7 +3462,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <nav style={s.nav}>
+        <nav style={s.nav} className="admin-nav">
           {NAV.map(item => {
             const Icon = item.icon
             return (
@@ -3474,7 +3474,7 @@ export default function AdminPage() {
           })}
         </nav>
 
-        <div style={{ padding: '12px 16px', borderTop: '1px solid #1a2d45' }}>
+        <div style={{ padding: '12px 16px', borderTop: '1px solid #1a2d45' }} className="admin-sidebar-footer">
           {user && (
             <div style={{ marginBottom: '10px' }}>
               <div style={{ fontSize: '13px', fontWeight: '600', color: '#e2e8f0' }}>
@@ -3494,8 +3494,8 @@ export default function AdminPage() {
       </div>
 
       {/* Main content */}
-      <main style={s.main}>
-        <div style={{ ...s.header, marginBottom: '28px' }}>
+      <main style={s.main} className="admin-main">
+        <div style={{ ...s.header, marginBottom: '28px' }} className="admin-header">
           <h1 style={s.pageTitle}>{TAB_TITLES[tab]}</h1>
           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
